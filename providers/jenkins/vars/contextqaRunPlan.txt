@@ -1,0 +1,15 @@
+<p>Runs a ContextQA test plan, publishes its JUnit results, and fails the build unless the run passed.</p>
+<pre>contextqaRunPlan planId: '827', credentialsId: 'contextqa-token'</pre>
+<dl>
+  <dt>planId (required)</dt><dd>Test plan to run.</dd>
+  <dt>credentialsId</dt><dd>Secret text credential holding the ContextQA API token. Omit it if CONTEXTQA_TOKEN is already set.</dd>
+  <dt>androidBuild / iosBuild</dt><dd>Build to test: a workspace path is uploaded, an https URL is passed through.</dd>
+  <dt>environment</dt><dd>Run against this environment instead of the plan's default.</dd>
+  <dt>apiUrl</dt><dd>Default https://server.contextqa.com.</dd>
+  <dt>timeout</dt><dd>Seconds to wait for the run. Default 3600.</dd>
+  <dt>failOn</dt><dd>failure (default) or never.</dd>
+  <dt>junitPath</dt><dd>Default contextqa-junit.xml.</dd>
+  <dt>publishJunit</dt><dd>Set false to skip the junit step.</dd>
+  <dt>runner</dt><dd>auto (default: npx, else Docker), npx or docker.</dd>
+  <dt>cliVersion</dt><dd>CLI / image version. Default 1.</dd>
+</dl>
