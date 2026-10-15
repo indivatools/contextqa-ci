@@ -2,9 +2,9 @@
 
 Run a [ContextQA](https://contextqa.com) test plan from your CI pipeline and fail the build unless it passes.
 
-> Status: pre-release. The CLI, the GitHub Action, the container image, the [GitLab component](providers/gitlab)
-> and the [Bitbucket pipe](providers/bitbucket) are in place; the CircleCI orb, Azure DevOps task and Jenkins
-> library land next.
+> Status: pre-release. The CLI, the GitHub Action, the container image, the [GitLab component](providers/gitlab),
+> the [Bitbucket pipe](providers/bitbucket) and the [CircleCI orb](providers/circleci) are in place; the Azure
+> DevOps task and Jenkins library land next.
 
 ## GitHub Actions
 
