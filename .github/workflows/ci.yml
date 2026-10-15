@@ -84,3 +84,5 @@ jobs:
         run: python3 scripts/check-gitlab-component.py
       - name: CircleCI orb is valid
         run: docker run --rm -v "$PWD/providers/circleci:/orb" -w /orb circleci/circleci-cli:0.1.38646 circleci orb validate orb.yml
+      - name: Jenkins step behaves as documented
+        run: docker run --rm -v "$PWD:/w" -w /w groovy:4.0-jdk21 groovy providers/jenkins/test/run-plan-test.groovy
