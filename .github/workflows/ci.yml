@@ -74,3 +74,11 @@ jobs:
           set +e
           docker run --rm -e CONTEXTQA_PLAN_ID=827 contextqa-cli:ci
           test $? -eq 2
+
+  providers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: GitLab component renders to a valid job
+        run: python3 scripts/check-gitlab-component.py

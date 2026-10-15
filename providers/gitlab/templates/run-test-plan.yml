@@ -1,0 +1,73 @@
+# GitLab CI/CD component: runs a ContextQA test plan and fails the job unless
+# it passes. JUnit results appear in the merge request's test summary.
+#
+#   include:
+#     - component: $CI_SERVER_FQDN/<group>/contextqa-ci/run-test-plan@1
+#       inputs:
+#         plan-id: "827"
+#
+# CONTEXTQA_TOKEN must be a masked CI/CD variable; it reaches the job as an
+# environment variable and is never an input, so it can't land in the YAML.
+spec:
+  inputs:
+    plan-id:
+      description: Test plan to run (the number in the plan's URL).
+      type: string
+    stage:
+      description: Stage the job runs in.
+      default: test
+    job-name:
+      description: Name of the generated job.
+      default: contextqa
+    api-url:
+      description: ContextQA API base URL. Change it for a dedicated or on-premises tenant.
+      default: https://server.contextqa.com
+    environment:
+      description: Run against this environment instead of the plan's default.
+      default: ''
+    android-build:
+      description: Android build to test. A path (e.g. an artifact from an earlier job) is uploaded; an https URL is passed through.
+      default: ''
+    ios-build:
+      description: iOS build to test. A path is uploaded; an https URL is passed through.
+      default: ''
+    timeout:
+      description: Seconds to wait for the run before failing.
+      type: number
+      default: 3600
+    job-timeout:
+      description: GitLab job timeout. Keep it above `timeout`.
+      default: 90m
+    fail-on:
+      description: "`failure` fails the job unless the run passed; `never` only reports."
+      default: failure
+      options: [failure, never]
+    image-tag:
+      description: Tag of ghcr.io/indivatools/contextqa-cli to run.
+      default: '1'
+---
+'$[[ inputs.job-name ]]':
+  stage: $[[ inputs.stage ]]
+  timeout: $[[ inputs.job-timeout ]]
+  image:
+    name: ghcr.io/indivatools/contextqa-cli:$[[ inputs.image-tag ]]
+    # GitLab runs the job script through a shell, so the image's
+    # `contextqa` entrypoint has to step aside.
+    entrypoint: ['']
+  # Quoted so an empty optional input renders as '' rather than a null,
+  # which GitLab rejects as a variable value.
+  variables:
+    CONTEXTQA_PLAN_ID: '$[[ inputs.plan-id ]]'
+    CONTEXTQA_API_URL: '$[[ inputs.api-url ]]'
+    CONTEXTQA_ENVIRONMENT: '$[[ inputs.environment ]]'
+    CONTEXTQA_ANDROID_BUILD: '$[[ inputs.android-build ]]'
+    CONTEXTQA_IOS_BUILD: '$[[ inputs.ios-build ]]'
+    CONTEXTQA_TIMEOUT: '$[[ inputs.timeout ]]'
+    CONTEXTQA_FAIL_ON: '$[[ inputs.fail-on ]]'
+    CONTEXTQA_JUNIT_PATH: contextqa-junit.xml
+  script:
+    - contextqa run-plan
+  artifacts:
+    when: always
+    reports:
+      junit: contextqa-junit.xml
