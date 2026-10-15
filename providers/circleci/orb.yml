@@ -1,0 +1,192 @@
+version: 2.1
+description: >
+  Run a ContextQA test plan, wait for the result, and fail the job unless it passes.
+  Results are stored as JUnit, so they show on the job's Tests tab.
+
+display:
+  home_url: https://contextqa.com
+  source_url: https://github.com/indivatools/contextqa-ci
+
+executors:
+  default:
+    description: CircleCI's Node image, which the CLI runs on through npx.
+    parameters:
+      node-version:
+        type: string
+        default: lts
+    docker:
+      - image: cimg/node:<< parameters.node-version >>
+
+commands:
+  run-plan:
+    description: >
+      Run a test plan on any executor that has Node (or the contextqa CLI) installed.
+      Reads the token from the CONTEXTQA_TOKEN environment variable; set it in a context.
+    parameters:
+      plan-id:
+        type: string
+        description: Test plan to run (the number in the plan's URL).
+      api-url:
+        type: string
+        default: https://server.contextqa.com
+        description: ContextQA API base URL. Change it for a dedicated or on-premises tenant.
+      environment:
+        type: string
+        default: ''
+        description: Run against this environment instead of the plan's default.
+      android-build:
+        type: string
+        default: ''
+        description: Android build to test. A path is uploaded; an https URL is passed through.
+      ios-build:
+        type: string
+        default: ''
+        description: iOS build to test. A path is uploaded; an https URL is passed through.
+      timeout:
+        type: integer
+        default: 3600
+        description: Seconds to wait for the run before failing.
+      fail-on:
+        type: enum
+        enum: [failure, never]
+        default: failure
+        description: "`failure` fails the job unless the run passed; `never` only reports."
+      results-dir:
+        type: string
+        default: contextqa-results
+        description: Directory the JUnit file is written to and stored from.
+      cli-version:
+        type: string
+        default: '1'
+        description: Version range of @contextqa/cli to run when it is not already installed.
+    steps:
+      - run:
+          name: Run ContextQA test plan << parameters.plan-id >>
+          # Progress is printed only when the counts change, so a slow test case
+          # can be quiet for a while; the CLI's own timeout still applies.
+          no_output_timeout: 60m
+          environment:
+            CONTEXTQA_PLAN_ID: << parameters.plan-id >>
+            CONTEXTQA_API_URL: << parameters.api-url >>
+            CONTEXTQA_ENVIRONMENT: << parameters.environment >>
+            CONTEXTQA_ANDROID_BUILD: << parameters.android-build >>
+            CONTEXTQA_IOS_BUILD: << parameters.ios-build >>
+            CONTEXTQA_TIMEOUT: << parameters.timeout >>
+            CONTEXTQA_FAIL_ON: << parameters.fail-on >>
+            CONTEXTQA_JUNIT_PATH: << parameters.results-dir >>/contextqa.xml
+          # The exit code is held back until the results are stored, because a
+          # failing step would skip store_test_results.
+          command: |
+            set +e
+            if command -v contextqa >/dev/null 2>&1; then
+              contextqa run-plan
+            else
+              npx --yes "@contextqa/cli@<< parameters.cli-version >>" run-plan
+            fi
+            echo $? > /tmp/contextqa-exit-code
+      - store_test_results:
+          path: << parameters.results-dir >>
+      - run:
+          name: Gate on the ContextQA result
+          command: exit "$(cat /tmp/contextqa-exit-code)"
+
+jobs:
+  run:
+    description: Run a ContextQA test plan in its own job.
+    executor:
+      name: default
+      node-version: << parameters.node-version >>
+    parameters:
+      plan-id:
+        type: string
+      api-url:
+        type: string
+        default: https://server.contextqa.com
+      environment:
+        type: string
+        default: ''
+      android-build:
+        type: string
+        default: ''
+      ios-build:
+        type: string
+        default: ''
+      timeout:
+        type: integer
+        default: 3600
+      fail-on:
+        type: enum
+        enum: [failure, never]
+        default: failure
+      cli-version:
+        type: string
+        default: '1'
+      node-version:
+        type: string
+        default: lts
+      checkout:
+        type: boolean
+        default: false
+        description: Check out the repository first, e.g. to upload a build committed to it.
+      workspace-root:
+        type: string
+        default: ''
+        description: Attach the workflow workspace here first, e.g. to upload a build from an earlier job.
+    steps:
+      - when:
+          condition: << parameters.checkout >>
+          steps: [checkout]
+      - when:
+          condition: << parameters.workspace-root >>
+          steps:
+            - attach_workspace:
+                at: << parameters.workspace-root >>
+      - run-plan:
+          plan-id: << parameters.plan-id >>
+          api-url: << parameters.api-url >>
+          environment: << parameters.environment >>
+          android-build: << parameters.android-build >>
+          ios-build: << parameters.ios-build >>
+          timeout: << parameters.timeout >>
+          fail-on: << parameters.fail-on >>
+          cli-version: << parameters.cli-version >>
+
+examples:
+  run-a-plan:
+    description: Run plan 827 after every push. CONTEXTQA_TOKEN comes from the `contextqa` context.
+    usage:
+      version: 2.1
+      orbs:
+        contextqa: contextqa/run-test-plan@1
+      workflows:
+        test:
+          jobs:
+            - contextqa/run:
+                plan-id: '827'
+                context: contextqa
+  upload-a-build:
+    description: Build an Android app, then upload it and run the plan against it.
+    usage:
+      version: 2.1
+      orbs:
+        contextqa: contextqa/run-test-plan@1
+      jobs:
+        build:
+          docker:
+            - image: cimg/android:2025.10
+          steps:
+            - checkout
+            - run: ./gradlew assembleRelease
+            - persist_to_workspace:
+                root: .
+                paths: [app/build/outputs/apk/release/app-release.apk]
+      workflows:
+        test:
+          jobs:
+            - build
+            - contextqa/run:
+                requires: [build]
+                context: contextqa
+                plan-id: '827'
+                workspace-root: .
+                android-build: app/build/outputs/apk/release/app-release.apk
