@@ -2,8 +2,22 @@
 
 Run a [ContextQA](https://contextqa.com) test plan from your CI pipeline and fail the build unless it passes.
 
-> Status: pre-release. The CLI below works today; the GitHub Action, GitLab component, CircleCI orb,
-> Azure DevOps task, Bitbucket pipe and Jenkins library are thin wrappers over it and land next.
+> Status: pre-release. The CLI and the GitHub Action work today; the GitLab component, CircleCI orb,
+> Azure DevOps task, Bitbucket pipe and Jenkins library are thin wrappers over the same core and land next.
+
+## GitHub Actions
+
+```yaml
+- uses: indivatools/contextqa-ci@v1
+  with:
+    plan-id: 827
+    token: ${{ secrets.CONTEXTQA_TOKEN }}
+    android-build: app/build/outputs/apk/release/app-release.apk   # optional
+```
+
+The job fails unless the run passes. It writes a summary table to the run page, annotates each failing
+test case, and exposes `run-id`, `report-url`, `result`, `passed`, `total-count`, `passed-count` and
+`failed-count` as outputs. All inputs are documented in [`action.yml`](action.yml).
 
 ## CLI
 
@@ -43,5 +57,7 @@ npm install
 npm run check      # build + typecheck + tests
 ```
 
-`packages/core` holds the API client and run logic; `packages/cli` is the `contextqa` command.
+`packages/core` holds the API client and run logic, `packages/cli` is the `contextqa` command, and
+`packages/github-action` is bundled into `dist/index.js` by `npm run bundle`. Commit `dist/` with any
+source change; CI fails when it is stale.
 API contract: `docs/api/test-plan-ci-execution.md` in ts-portal-server.
