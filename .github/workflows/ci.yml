@@ -83,4 +83,4 @@ jobs:
       - name: GitLab component renders to a valid job
         run: python3 scripts/check-gitlab-component.py
       - name: CircleCI orb is valid
-        run: docker run --rm -v "$PWD/providers/circleci:/orb" -w /orb circleci/circleci-cli:1.6.0 circleci orb validate orb.yml
+        run: docker run --rm -v "$PWD/providers/circleci:/orb" -w /orb circleci/circleci-cli:0.1.38646 circleci orb validate orb.yml
