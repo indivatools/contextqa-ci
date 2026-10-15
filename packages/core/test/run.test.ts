@@ -279,7 +279,7 @@ describe('runTestPlan', () => {
   });
 
   it.each([
-    [{ token: '' }, 'CONTEXTQA_TOKEN is not set'],
+    [{ token: '' }, 'ContextQA token is missing'],
     [{ planId: '82 7' }, 'plan id must be a number'],
     [{ apiUrl: 'server.contextqa.com' }, 'API URL is not a valid URL'],
     [{ pollIntervalSeconds: 0 }, 'positive'],

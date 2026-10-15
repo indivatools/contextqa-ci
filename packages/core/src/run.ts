@@ -64,7 +64,7 @@ export async function runTestPlan(options: RunOptions, reporter: Reporter, deps:
 
 function validate(options: RunOptions): void {
   if (!options.token) {
-    throw new ConfigError('CONTEXTQA_TOKEN is not set — add it as a CI secret');
+    throw new ConfigError('ContextQA token is missing — pass it from a CI secret (CONTEXTQA_TOKEN)');
   }
   if (!PLAN_ID_PATTERN.test(options.planId)) {
     throw new ConfigError(`plan id must be a number, got "${options.planId}"`);

@@ -1,4 +1,5 @@
 export { authHeaders, isApiToken } from './auth.js';
+export { toBuildSource } from './build-source.js';
 export { ContextQAClient, type ClientDeps, type FetchFn, type SleepFn } from './client.js';
 export {
   AuthError,
