@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FakeServer, fakeTime, json, results, text } from '../../core/test/fake-server.js';
 import { runAction, type ActionIo } from '../src/main.js';
-import { renderSummary } from '../src/summary.js';
+import { renderSummary } from '@contextqa/ci-core';
 
 const TOKEN = 'token_acme.secret';
 

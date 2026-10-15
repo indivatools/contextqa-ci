@@ -6,18 +6,20 @@
   "workspaces": [
     "packages/core",
     "packages/cli",
-    "packages/github-action"
+    "packages/github-action",
+    "packages/azure-devops-task"
   ],
   "engines": {
     "node": ">=20.6"
   },
   "scripts": {
-    "build": "tsc -b packages/core packages/cli packages/github-action",
+    "build": "tsc -b packages/core packages/cli packages/github-action packages/azure-devops-task",
     "bundle": "node scripts/bundle.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.test.json",
     "check": "npm run build && npm run typecheck && npm test",
-    "bundle:cli": "node scripts/bundle-cli.mjs"
+    "bundle:cli": "node scripts/bundle-cli.mjs",
+    "bundle:azure": "node scripts/bundle-azure-task.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

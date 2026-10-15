@@ -6,3 +6,5 @@ coverage/
 .worktrees/*
 !.worktrees/.gitkeep
 build/
+providers/azure-devops/ContextQARunTestPlan/index.js
+providers/azure-devops/*.vsix

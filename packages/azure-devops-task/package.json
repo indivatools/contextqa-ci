@@ -1,0 +1,10 @@
+{
+  "name": "@contextqa/azure-devops-task",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Azure Pipelines task for contextqa-ci; bundled into providers/azure-devops at release",
+  "type": "module",
+  "dependencies": {
+    "@contextqa/ci-core": "0.1.0"
+  }
+}

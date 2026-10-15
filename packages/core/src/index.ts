@@ -14,4 +14,5 @@ export {
 export { exitCodeFor, FAIL_ON_VALUES, type FailOn } from './gate.js';
 export { toJUnitXml } from './junit.js';
 export { runTestPlan, type RunDeps } from './run.js';
+export { failingTests, renderSummary } from './summary.js';
 export * from './types.js';

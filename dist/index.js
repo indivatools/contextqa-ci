@@ -20123,40 +20123,7 @@ async function collectTestCases(client, reporter, runId, token) {
   }
 }
 
-// packages/github-action/src/inputs.ts
-var DEFAULT_API_URL = "https://server.contextqa.com";
-var DEFAULT_TIMEOUT_SECONDS = 3600;
-var DEFAULT_POLL_INTERVAL_SECONDS = 15;
-function readInputs(getInput2) {
-  const value = (name) => getInput2(name).trim() || void 0;
-  const failOn = value("fail-on") ?? "failure";
-  if (!FAIL_ON_VALUES.includes(failOn)) {
-    throw new ConfigError(`fail-on must be one of ${FAIL_ON_VALUES.join(", ")}`);
-  }
-  return {
-    run: {
-      apiUrl: value("api-url") ?? DEFAULT_API_URL,
-      token: value("token") ?? "",
-      planId: value("plan-id") ?? "",
-      environment: value("environment"),
-      androidBuild: toBuildSource(value("android-build")),
-      iosBuild: toBuildSource(value("ios-build")),
-      wait: (value("wait") ?? "true").toLowerCase() !== "false",
-      timeoutSeconds: seconds2(value("timeout"), DEFAULT_TIMEOUT_SECONDS, "timeout"),
-      pollIntervalSeconds: seconds2(value("poll-interval"), DEFAULT_POLL_INTERVAL_SECONDS, "poll-interval")
-    },
-    failOn,
-    junitPath: value("junit-path")
-  };
-}
-function seconds2(raw, fallback, name) {
-  if (raw === void 0) return fallback;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) throw new ConfigError(`${name} must be a positive number of seconds`);
-  return parsed;
-}
-
-// packages/github-action/src/summary.ts
+// packages/core/src/summary.ts
 var MS_PER_SECOND3 = 1e3;
 var SECONDS_PER_MINUTE = 60;
 var MAX_LISTED_TESTS = 50;
@@ -20201,6 +20168,39 @@ function duration(ms) {
   const total = Math.round(ms / MS_PER_SECOND3);
   const minutes = Math.floor(total / SECONDS_PER_MINUTE);
   return minutes > 0 ? `${minutes}m ${total % SECONDS_PER_MINUTE}s` : `${total}s`;
+}
+
+// packages/github-action/src/inputs.ts
+var DEFAULT_API_URL = "https://server.contextqa.com";
+var DEFAULT_TIMEOUT_SECONDS = 3600;
+var DEFAULT_POLL_INTERVAL_SECONDS = 15;
+function readInputs(getInput2) {
+  const value = (name) => getInput2(name).trim() || void 0;
+  const failOn = value("fail-on") ?? "failure";
+  if (!FAIL_ON_VALUES.includes(failOn)) {
+    throw new ConfigError(`fail-on must be one of ${FAIL_ON_VALUES.join(", ")}`);
+  }
+  return {
+    run: {
+      apiUrl: value("api-url") ?? DEFAULT_API_URL,
+      token: value("token") ?? "",
+      planId: value("plan-id") ?? "",
+      environment: value("environment"),
+      androidBuild: toBuildSource(value("android-build")),
+      iosBuild: toBuildSource(value("ios-build")),
+      wait: (value("wait") ?? "true").toLowerCase() !== "false",
+      timeoutSeconds: seconds2(value("timeout"), DEFAULT_TIMEOUT_SECONDS, "timeout"),
+      pollIntervalSeconds: seconds2(value("poll-interval"), DEFAULT_POLL_INTERVAL_SECONDS, "poll-interval")
+    },
+    failOn,
+    junitPath: value("junit-path")
+  };
+}
+function seconds2(raw, fallback, name) {
+  if (raw === void 0) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new ConfigError(`${name} must be a positive number of seconds`);
+  return parsed;
 }
 
 // packages/github-action/src/main.ts

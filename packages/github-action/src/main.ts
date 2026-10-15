@@ -5,13 +5,14 @@ import {
   ExitCode,
   RunTimeoutError,
   exitCodeFor,
+  failingTests,
+  renderSummary,
   runTestPlan,
   toJUnitXml,
   type RunDeps,
   type RunSummary,
 } from '@contextqa/ci-core';
 import { readInputs } from './inputs.js';
-import { failingTests, renderSummary } from './summary.js';
 
 /** GitHub caps error annotations per step at 10; more are dropped silently. */
 const MAX_ANNOTATIONS = 10;

@@ -1,4 +1,4 @@
-import type { RunSummary, TestCaseOutcome } from '@contextqa/ci-core';
+import type { RunSummary, TestCaseOutcome } from './types.js';
 
 const MS_PER_SECOND = 1_000;
 const SECONDS_PER_MINUTE = 60;
@@ -6,7 +6,7 @@ const SECONDS_PER_MINUTE = 60;
 const MAX_LISTED_TESTS = 50;
 const NOT_PASSING = new Set(['FAILURE', 'ABORTED']);
 
-/** Markdown for the job summary page. */
+/** Markdown run summary, rendered by GitHub's job summary and Azure DevOps' Extensions tab. */
 export function renderSummary(summary: RunSummary, planId: string): string {
   const lines = [`### ContextQA · test plan ${planId}`, ''];
   const r = summary.results;
