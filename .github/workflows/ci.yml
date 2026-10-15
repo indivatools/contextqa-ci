@@ -28,3 +28,34 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+
+  # The Action runs the committed dist/, so a stale bundle ships stale code.
+  bundle-current:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run bundle
+      - name: dist/ matches the source
+        run: git diff --exit-code -- dist/ || { echo "::error::dist/ is stale — run 'npm run bundle' and commit it"; exit 1; }
+
+  # Runs the Action the way a customer does. No token is available here, so it
+  # proves the bundle loads, reads inputs and fails cleanly rather than crashing.
+  action-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: run
+        uses: ./
+        continue-on-error: true
+        with:
+          plan-id: '827'
+          token: ''
+      - name: Failed with a configuration error, not a crash
+        run: test "${{ steps.run.outcome }}" = failure

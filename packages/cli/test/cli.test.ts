@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FakeServer, fakeTime, json, results, text } from '../../core/test/fake-server.js';
-import { DEFAULT_API_URL, parseCommand, toBuildSource } from '../src/args.js';
+import { toBuildSource } from '@contextqa/ci-core';
+import { DEFAULT_API_URL, parseCommand } from '../src/args.js';
 import { main, type Io } from '../src/main.js';
 
 const TOKEN_ENV = { CONTEXTQA_TOKEN: 'token_acme.secret' };
@@ -120,7 +121,7 @@ describe('main', () => {
   it('exits 2 for a missing token and for a refused one', async () => {
     const io = captureIo();
     expect(await main(['run-plan', '--plan-id', '827'], {}, '0', io)).toBe(2);
-    expect(io.err_[0]).toContain('CONTEXTQA_TOKEN is not set');
+    expect(io.err_[0]).toContain('ContextQA token is missing');
 
     const server = new FakeServer().on('GET', '/test_plans/827/execution', () => text('Token is not found', 401));
     expect(await main(['run-plan', '--plan-id', '827'], TOKEN_ENV, '0', captureIo(), { fetch: server.fetch, ...fakeTime() })).toBe(2);

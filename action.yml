@@ -1,0 +1,60 @@
+name: ContextQA Test Plan
+description: Run a ContextQA test plan, wait for the result, and fail the job unless it passes.
+author: ContextQA
+branding:
+  icon: check-circle
+  color: purple
+
+inputs:
+  plan-id:
+    description: Test plan to run (the number in the plan's URL).
+    required: true
+  token:
+    description: >
+      ContextQA API token (token_…), from a secret. Give it TEST_PLAN_EXECUTE and TEST_PLAN_RESULTS_READ,
+      plus TEST_PLAN_BUILD_UPLOAD to upload builds and TEST_CASE_RESULTS_READ for per-test results.
+      A legacy CI token also works, with counts only.
+    required: true
+  api-url:
+    description: ContextQA API base URL. Change it for a dedicated or on-premises tenant.
+    default: https://server.contextqa.com
+  environment:
+    description: Run against this environment instead of the plan's default.
+  android-build:
+    description: Android build to test. A workspace path is uploaded; an https URL is passed through.
+  ios-build:
+    description: iOS build to test. A workspace path is uploaded; an https URL is passed through.
+  wait:
+    description: Wait for the result. Set to false to trigger and move on.
+    default: 'true'
+  timeout:
+    description: Seconds to wait for the run before failing.
+    default: '3600'
+  poll-interval:
+    description: Seconds between status checks.
+    default: '15'
+  junit-path:
+    description: Also write the results as JUnit XML to this path.
+  fail-on:
+    description: "`failure` fails the job unless the run passed; `never` only reports."
+    default: failure
+
+outputs:
+  run-id:
+    description: ContextQA run id.
+  report-url:
+    description: Link to the run report in ContextQA.
+  result:
+    description: Run verdict, e.g. SUCCESS, FAILURE, ABORTED, STOPPED.
+  passed:
+    description: "`true` when the run passed."
+  total-count:
+    description: Number of test cases in the run.
+  passed-count:
+    description: Test cases that passed.
+  failed-count:
+    description: Test cases that failed.
+
+runs:
+  using: node24
+  main: dist/index.js

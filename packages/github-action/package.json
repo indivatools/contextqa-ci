@@ -1,0 +1,11 @@
+{
+  "name": "@contextqa/github-action",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub Action glue for contextqa-ci; bundled to dist/index.js at the repo root",
+  "type": "module",
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@contextqa/ci-core": "0.1.0"
+  }
+}

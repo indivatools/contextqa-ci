@@ -1,10 +1,9 @@
 import { parseArgs } from 'node:util';
-import { ConfigError, FAIL_ON_VALUES, type BuildSource, type FailOn, type RunOptions } from '@contextqa/ci-core';
+import { ConfigError, FAIL_ON_VALUES, toBuildSource, type FailOn, type RunOptions } from '@contextqa/ci-core';
 
 export const DEFAULT_API_URL = 'https://server.contextqa.com';
 const DEFAULT_TIMEOUT_SECONDS = 3600;
 const DEFAULT_POLL_INTERVAL_SECONDS = 15;
-const URL_PATTERN = /^https?:\/\//i;
 
 export interface CliConfig {
   run: RunOptions;
@@ -98,12 +97,6 @@ export function parseCommand(argv: string[], env: Env): ParsedCommand {
       jsonPath: pick(values.json, 'CONTEXTQA_JSON_PATH'),
     },
   };
-}
-
-/** A URL is handed to the server as-is; anything else is a local file to upload. */
-export function toBuildSource(value: string | undefined): BuildSource | undefined {
-  if (!value) return undefined;
-  return URL_PATTERN.test(value) ? { kind: 'url', url: value } : { kind: 'file', path: value };
 }
 
 function toSeconds(value: string | undefined, fallback: number, flag: string): number {
