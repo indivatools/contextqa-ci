@@ -86,3 +86,13 @@ jobs:
         run: docker run --rm -v "$PWD/providers/circleci:/orb" -w /orb circleci/circleci-cli:0.1.38646 circleci orb validate orb.yml
       - name: Jenkins step behaves as documented
         run: docker run --rm -v "$PWD:/w" -w /w groovy:4.0-jdk21 groovy providers/jenkins/test/run-plan-test.groovy
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Azure DevOps extension packages
+        run: |
+          npm ci
+          npm run bundle:azure
+          cd providers/azure-devops
+          npx --yes tfx-cli@0.24.2 extension create --manifest-globs vss-extension.json --output-path "$RUNNER_TEMP/contextqa.vsix"
