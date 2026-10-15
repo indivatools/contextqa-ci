@@ -1,0 +1,24 @@
+{
+  "manifestVersion": 1,
+  "id": "contextqa-run-test-plan",
+  "publisher": "contextqa",
+  "version": "1.0.0",
+  "name": "ContextQA Test Plan",
+  "description": "Run a ContextQA test plan from Azure Pipelines and gate the pipeline on the result.",
+  "public": false,
+  "categories": ["Azure Pipelines"],
+  "tags": ["testing", "test automation", "contextqa"],
+  "targets": [{ "id": "Microsoft.VisualStudio.Services" }],
+  "icons": { "default": "images/icon.png" },
+  "content": { "details": { "path": "README.md" } },
+  "repository": { "type": "git", "uri": "https://github.com/indivatools/contextqa-ci" },
+  "files": [{ "path": "ContextQARunTestPlan" }],
+  "contributions": [
+    {
+      "id": "run-test-plan-task",
+      "type": "ms.vss-distributed-task.task",
+      "targets": ["ms.vss-distributed-task.tasks"],
+      "properties": { "name": "ContextQARunTestPlan" }
+    }
+  ]
+}

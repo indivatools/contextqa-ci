@@ -1,0 +1,116 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
+  "id": "c0496a6b-6e9b-42a7-90d3-aabfc3b38ca4",
+  "name": "ContextQARunTestPlan",
+  "friendlyName": "ContextQA: Run test plan",
+  "description": "Run a ContextQA test plan, publish its results, and fail unless it passes.",
+  "helpMarkDown": "[Docs](https://github.com/indivatools/contextqa-ci/tree/main/providers/azure-devops)",
+  "category": "Test",
+  "author": "ContextQA",
+  "version": { "Major": 1, "Minor": 0, "Patch": 0 },
+  "minimumAgentVersion": "3.232.1",
+  "instanceNameFormat": "ContextQA test plan $(planId)",
+  "groups": [
+    { "name": "advanced", "displayName": "Advanced", "isExpanded": false }
+  ],
+  "inputs": [
+    {
+      "name": "planId",
+      "type": "string",
+      "label": "Test plan ID",
+      "required": true,
+      "helpMarkDown": "The number in the test plan's URL."
+    },
+    {
+      "name": "token",
+      "type": "string",
+      "label": "API token",
+      "required": false,
+      "defaultValue": "$(CONTEXTQA_TOKEN)",
+      "helpMarkDown": "A secret pipeline variable holding a ContextQA API token. Needs TEST_PLAN_EXECUTE and TEST_PLAN_RESULTS_READ, plus TEST_PLAN_BUILD_UPLOAD to upload builds and TEST_CASE_RESULTS_READ for per-test results."
+    },
+    {
+      "name": "androidBuild",
+      "type": "string",
+      "label": "Android build",
+      "required": false,
+      "helpMarkDown": "Path to an .apk/.aab to upload, or an https URL to pass through."
+    },
+    {
+      "name": "iosBuild",
+      "type": "string",
+      "label": "iOS build",
+      "required": false,
+      "helpMarkDown": "Path to an .ipa to upload, or an https URL to pass through."
+    },
+    {
+      "name": "environment",
+      "type": "string",
+      "label": "Environment",
+      "required": false,
+      "helpMarkDown": "Run against this environment instead of the plan's default."
+    },
+    {
+      "name": "failOn",
+      "type": "pickList",
+      "label": "Fail the task",
+      "defaultValue": "failure",
+      "required": false,
+      "options": { "failure": "Unless the run passed", "never": "Never (report only)" }
+    },
+    {
+      "name": "apiUrl",
+      "type": "string",
+      "label": "API URL",
+      "defaultValue": "https://server.contextqa.com",
+      "required": false,
+      "groupName": "advanced",
+      "helpMarkDown": "Change it for a dedicated or on-premises tenant."
+    },
+    {
+      "name": "timeout",
+      "type": "string",
+      "label": "Timeout (seconds)",
+      "defaultValue": "3600",
+      "required": false,
+      "groupName": "advanced"
+    },
+    {
+      "name": "wait",
+      "type": "boolean",
+      "label": "Wait for the result",
+      "defaultValue": "true",
+      "required": false,
+      "groupName": "advanced"
+    },
+    {
+      "name": "publishTestResults",
+      "type": "boolean",
+      "label": "Publish results to the Tests tab",
+      "defaultValue": "true",
+      "required": false,
+      "groupName": "advanced"
+    },
+    {
+      "name": "junitPath",
+      "type": "string",
+      "label": "JUnit file",
+      "required": false,
+      "groupName": "advanced",
+      "helpMarkDown": "Where to write the JUnit XML. Defaults to the agent's temp directory."
+    }
+  ],
+  "outputVariables": [
+    { "name": "runId", "description": "ContextQA run id." },
+    { "name": "reportUrl", "description": "Link to the run report in ContextQA." },
+    { "name": "result", "description": "Run verdict, e.g. SUCCESS or FAILURE." },
+    { "name": "passed", "description": "true when the run passed." },
+    { "name": "totalCount", "description": "Test cases in the run." },
+    { "name": "passedCount", "description": "Test cases that passed." },
+    { "name": "failedCount", "description": "Test cases that failed." }
+  ],
+  "execution": {
+    "Node24": { "target": "index.js" },
+    "Node20_1": { "target": "index.js" }
+  }
+}
