@@ -62,4 +62,4 @@ npm run check      # build + typecheck + tests
 `packages/core` holds the API client and run logic, `packages/cli` is the `contextqa` command, and
 `packages/github-action` is bundled into `dist/index.js` by `npm run bundle`. Commit `dist/` with any
 source change; CI fails when it is stale.
-API contract: `docs/api/test-plan-ci-execution.md` in ts-portal-server.
+API contract: `docs/api/test-plan-ci-execution.md` in ts-portal-server. Releases: [docs/RELEASING.md](docs/RELEASING.md).

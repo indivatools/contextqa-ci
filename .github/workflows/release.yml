@@ -1,0 +1,203 @@
+# Publishes every channel from one tag: git tag v1.2.3 && git push origin v1.2.3
+# (v* tags are restricted to org admins). A channel whose credentials are not
+# configured yet is skipped with a notice, so releases work while publisher
+# accounts are still being set up. See docs/RELEASING.md.
+name: release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/indivatools/contextqa-cli
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      major: ${{ steps.version.outputs.major }}
+      minor: ${{ steps.version.outputs.minor }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          {
+            echo "version=$version"
+            echo "major=${version%%.*}"
+            echo "minor=$(echo "$version" | cut -d. -f1-2)"
+          } >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run check
+      - name: Tagged commit has a current Action bundle
+        run: npm run bundle && git diff --exit-code -- dist/
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - if: env.NODE_AUTH_TOKEN == ''
+        run: echo "::notice::NPM_TOKEN not set — skipping npm publish"
+      - if: env.NODE_AUTH_TOKEN != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: env.NODE_AUTH_TOKEN != ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - if: env.NODE_AUTH_TOKEN != ''
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          npm ci
+          node scripts/set-version.mjs "$VERSION"
+          npm run build
+          npm publish -w @contextqa/ci-core --access public --provenance
+          npm publish -w @contextqa/cli --access public --provenance
+
+  image:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Stamp the version the image reports
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: node scripts/set-version.mjs "$VERSION"
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: true
+          tags: |
+            ${{ env.IMAGE }}:${{ needs.verify.outputs.version }}
+            ${{ env.IMAGE }}:${{ needs.verify.outputs.minor }}
+            ${{ env.IMAGE }}:${{ needs.verify.outputs.major }}
+            ${{ env.IMAGE }}:latest
+
+  gitlab:
+    needs: [verify, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+      GITLAB_PROJECT: ${{ vars.GITLAB_PROJECT }} # e.g. contextqa/contextqa-ci on gitlab.com
+    steps:
+      - if: env.GITLAB_TOKEN == '' || env.GITLAB_PROJECT == ''
+        run: echo "::notice::GITLAB_TOKEN or vars.GITLAB_PROJECT not set — skipping the GitLab catalog"
+      - if: env.GITLAB_TOKEN != '' && env.GITLAB_PROJECT != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Mirror providers/gitlab and tag it
+        if: env.GITLAB_TOKEN != '' && env.GITLAB_PROJECT != ''
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -eu
+          work="$RUNNER_TEMP/gitlab"
+          git clone --quiet "https://oauth2:${GITLAB_TOKEN}@gitlab.com/${GITLAB_PROJECT}.git" "$work"
+          find "$work" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R providers/gitlab/. "$work/"
+          cd "$work"
+          git config user.name "contextqa-ci release"
+          git config user.email "noreply@contextqa.com"
+          git add -A
+          git commit --quiet -m "Release $VERSION" || echo "no content change"
+          git tag "$VERSION"
+          git push --quiet origin HEAD "refs/tags/$VERSION"
+
+  circleci:
+    needs: [verify, npm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CIRCLE_TOKEN: ${{ secrets.CIRCLECI_TOKEN }}
+      ORB: ${{ vars.CIRCLECI_ORB }} # e.g. contextqa/run-test-plan
+    steps:
+      - if: env.CIRCLE_TOKEN == '' || env.ORB == ''
+        run: echo "::notice::CIRCLECI_TOKEN or vars.CIRCLECI_ORB not set — skipping the orb"
+      - if: env.CIRCLE_TOKEN != '' && env.ORB != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: env.CIRCLE_TOKEN != '' && env.ORB != ''
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: >
+          docker run --rm -e CIRCLE_TOKEN -v "$PWD/providers/circleci:/orb" -w /orb
+          circleci/circleci-cli:0.1.38646
+          circleci orb publish orb.yml "$ORB@$VERSION" --token "$CIRCLE_TOKEN"
+
+  azure:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AZURE_TOKEN: ${{ secrets.AZURE_MARKETPLACE_TOKEN }}
+      PUBLISHER: ${{ vars.AZURE_PUBLISHER }}
+    steps:
+      - if: env.AZURE_TOKEN == '' || env.PUBLISHER == ''
+        run: echo "::notice::AZURE_MARKETPLACE_TOKEN or vars.AZURE_PUBLISHER not set — skipping the Azure extension"
+      - if: env.AZURE_TOKEN != '' && env.PUBLISHER != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: env.AZURE_TOKEN != '' && env.PUBLISHER != ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - if: env.AZURE_TOKEN != '' && env.PUBLISHER != ''
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          npm ci
+          node scripts/set-version.mjs "$VERSION"
+          npm run bundle:azure
+          cd providers/azure-devops
+          npx --yes tfx-cli@0.24.2 extension publish --manifest-globs vss-extension.json \
+            --publisher "$PUBLISHER" --token "$AZURE_TOKEN"
+
+  github-release:
+    needs: [verify, npm, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          MAJOR: ${{ needs.verify.outputs.major }}
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --generate-notes --verify-tag
+          echo "::notice::Now point the Action's major tag at this release: git tag -f v$MAJOR $TAG && git push -f origin v$MAJOR"

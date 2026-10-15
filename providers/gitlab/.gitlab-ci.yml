@@ -1,0 +1,13 @@
+# Pipeline of the gitlab.com mirror of this directory. The release workflow in
+# indivatools/contextqa-ci pushes a tag here; this turns it into a GitLab
+# release, which is what publishes a new version to the CI/CD Catalog.
+create-release:
+  stage: deploy
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
+  script:
+    - echo "Releasing run-test-plan $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "https://github.com/indivatools/contextqa-ci/releases/tag/v$CI_COMMIT_TAG"
