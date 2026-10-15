@@ -1,0 +1,23 @@
+{
+  "name": "@contextqa/cli",
+  "version": "0.1.0",
+  "description": "Run a ContextQA test plan from any CI pipeline and gate on the result",
+  "type": "module",
+  "bin": {
+    "contextqa": "dist/bin.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "engines": {
+    "node": ">=20.6"
+  },
+  "dependencies": {
+    "@contextqa/ci-core": "0.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/indivatools/contextqa-ci.git",
+    "directory": "packages/cli"
+  }
+}

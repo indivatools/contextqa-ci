@@ -1,0 +1,7 @@
+node_modules/
+packages/*/dist/
+*.tsbuildinfo
+coverage/
+.env
+.worktrees/*
+!.worktrees/.gitkeep

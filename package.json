@@ -1,0 +1,24 @@
+{
+  "name": "contextqa-ci",
+  "private": true,
+  "description": "Run ContextQA test plans from CI pipelines",
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/cli"
+  ],
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "build": "tsc -b packages/core packages/cli",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "check": "npm run build && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
