@@ -16,7 +16,8 @@
     "bundle": "node scripts/bundle.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.test.json",
-    "check": "npm run build && npm run typecheck && npm test"
+    "check": "npm run build && npm run typecheck && npm test",
+    "bundle:cli": "node scripts/bundle-cli.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
