@@ -1,65 +1,165 @@
-# contextqa-ci
+# ContextQA for CI/CD
 
-Run a [ContextQA](https://contextqa.com) test plan from your CI pipeline and fail the build unless it passes.
+Run your [ContextQA](https://contextqa.com) test plans from any CI/CD pipeline. Every push or pull request
+triggers the plan, waits for the result, publishes it to your CI's test report, and fails the build unless
+the run passed.
 
-> Status: pre-release. Every wrapper is in place: the CLI, the GitHub Action, the container image, the
-> [GitLab component](providers/gitlab), the [Bitbucket pipe](providers/bitbucket), the
-> [CircleCI orb](providers/circleci), the [Jenkins library](providers/jenkins) and the
-> [Azure DevOps task](providers/azure-devops). None is published yet.
+| Your CI | Integration | Guide |
+|---|---|---|
+| GitHub Actions | `uses: indivatools/contextqa-ci@v1` | [below](#github-actions) |
+| GitLab CI/CD | CI/CD Catalog component | [providers/gitlab](providers/gitlab) |
+| Jenkins | shared library step `contextqaRunPlan` | [providers/jenkins](providers/jenkins) |
+| Azure Pipelines | `ContextQARunTestPlan@1` task | [providers/azure-devops](providers/azure-devops) |
+| CircleCI | `contextqa/run-test-plan` orb | [providers/circleci](providers/circleci) |
+| Bitbucket Pipelines | pipe | [providers/bitbucket](providers/bitbucket) |
+| Anything else | `contextqa` CLI or container image | [below](#any-other-ci) |
+
+All of them run the same engine, so behaviour, options and exit codes are identical everywhere.
+
+## Before you start
+
+You need two things from ContextQA:
+
+1. **The test plan ID.** Open the plan in ContextQA; the ID is the number in the URL
+   (`…/plans/827/…` → `827`). The plan's **CI/CD** tab also generates a ready-made snippet for your provider.
+2. **An API token.** Create one under **Settings › API tokens** (or from the plan's **CI/CD** tab) with these
+   permissions:
+
+   | Permission | Needed for |
+   |---|---|
+   | `TEST_PLAN_EXECUTE` | starting the run (required) |
+   | `TEST_PLAN_RESULTS_READ` | waiting for the result (required) |
+   | `TEST_CASE_RESULTS_READ` | per-test results in your CI's test report (recommended) |
+   | `TEST_PLAN_BUILD_UPLOAD` | uploading a mobile build from the pipeline (mobile plans only) |
+
+   Store it as a secret in your CI, named `CONTEXTQA_TOKEN`. Never commit it to the repository.
 
 ## GitHub Actions
 
 ```yaml
-- uses: indivatools/contextqa-ci@v1
-  with:
-    plan-id: 827
-    token: ${{ secrets.CONTEXTQA_TOKEN }}
-    android-build: app/build/outputs/apk/release/app-release.apk   # optional
+name: ContextQA
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  contextqa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: indivatools/contextqa-ci@v1
+        with:
+          plan-id: 827
+          token: ${{ secrets.CONTEXTQA_TOKEN }}
 ```
 
-The job fails unless the run passes. It writes a summary table to the run page, annotates each failing
-test case, and exposes `run-id`, `report-url`, `result`, `passed`, `total-count`, `passed-count` and
-`failed-count` as outputs. All inputs are documented in [`action.yml`](action.yml).
+Add `CONTEXTQA_TOKEN` under **Settings › Secrets and variables › Actions**. On every run you get:
 
-## CLI
+- the job failing unless the test plan passed,
+- a summary on the run page with counts, a link to the full ContextQA report, and each failing test case
+  linked to its trace,
+- an annotation for every failing test case,
+- outputs for later steps: `run-id`, `report-url`, `result`, `passed`, `total-count`, `passed-count`,
+  `failed-count`.
+
+<details>
+<summary>All inputs</summary>
+
+| Input | Default | Description |
+|---|---|---|
+| `plan-id` | required | Test plan to run. |
+| `token` | required | API token, from a secret. |
+| `environment` | the plan's own | Run against this ContextQA environment instead. |
+| `android-build` | | Android build to test: a path in the workspace (uploaded) or an `https://` URL. |
+| `ios-build` | | iOS build to test: a path in the workspace (uploaded) or an `https://` URL. |
+| `timeout` | `3600` | Seconds to wait for the run before failing. |
+| `poll-interval` | `15` | Seconds between status checks. |
+| `wait` | `true` | `false` starts the run and moves on without waiting. |
+| `fail-on` | `failure` | `never` reports the result without failing the job. |
+| `junit-path` | | Also write JUnit XML to this path. |
+| `api-url` | `https://server.contextqa.com` | Change only for a dedicated or on-premises ContextQA. |
+
+</details>
+
+<details>
+<summary>Testing a mobile build produced earlier in the workflow</summary>
+
+```yaml
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./gradlew assembleRelease
+      - uses: indivatools/contextqa-ci@v1
+        with:
+          plan-id: 827
+          token: ${{ secrets.CONTEXTQA_TOKEN }}
+          android-build: app/build/outputs/apk/release/app-release.apk
+```
+
+The build is uploaded straight to your ContextQA workspace; no cloud storage credentials are needed in the
+pipeline.
+
+</details>
+
+## Any other CI
+
+Anything that can run Node.js 20+ or a container works:
 
 ```sh
-export CONTEXTQA_TOKEN=token_…        # Settings → API tokens, or the plan's CI/CD tab
-npx @contextqa/cli run-plan --plan-id 827 --junit reports/contextqa.xml
+# Node.js
+CONTEXTQA_TOKEN=… npx @contextqa/cli@1 run-plan --plan-id 827 --junit reports/contextqa.xml
+
+# Container
+docker run --rm -e CONTEXTQA_TOKEN -v "$PWD:/work" -w /work \
+  ghcr.io/indivatools/contextqa-cli:1 run-plan --plan-id 827 --junit reports/contextqa.xml
 ```
 
-It uploads any local mobile build, triggers the plan, waits for the verdict, writes JUnit, and exits:
+Every option is available as a flag or a `CONTEXTQA_*` environment variable (`contextqa --help` lists them).
+The token is read from `CONTEXTQA_TOKEN` only, never from a flag, so it does not appear in process listings
+or logs.
 
-| Exit | Meaning |
+## Results and exit codes
+
+The build passes only when the test plan's result is **SUCCESS**. A run that is aborted or stopped is not a
+pass, even if no test case failed.
+
+| Exit code | Meaning | What to do |
+|---|---|---|
+| `0` | The run passed. | |
+| `1` | The run finished but did not pass. | Open the report link printed in the log. |
+| `2` | Configuration or token problem. | Check the plan ID, the token and its permissions. Retrying will not help. |
+| `3` | ContextQA could not be reached, or the run did not finish within the timeout. | The log links the run, which keeps going in ContextQA. Retry, or raise the timeout. |
+
+Results are also written as JUnit XML, so GitLab, Jenkins, Azure Pipelines, CircleCI and Bitbucket show each
+test case in their own test report.
+
+## Troubleshooting
+
+| Message | Cause |
 |---|---|
-| 0 | the run passed |
-| 1 | the run finished but did not pass (failed, aborted or stopped) |
-| 2 | configuration or credential problem — retrying will not help |
-| 3 | server/network failure, or the run did not finish within `--timeout` |
+| `ContextQA token is missing` | The `CONTEXTQA_TOKEN` secret is not set, or not passed to the step. |
+| `refused the token (HTTP 401)` | The token is wrong, expired or revoked. Create a new one. |
+| `refused the token (HTTP 403)` | The token lacks a permission listed in [Before you start](#before-you-start), or the runner's IP is outside the token's allowlist. |
+| `not found (HTTP 404)` | The `api-url` is wrong, or the plan ID does not exist in the token's workspace. |
+| `Per-test results unavailable` | The token lacks `TEST_CASE_RESULTS_READ`. The verdict is unaffected; only per-test detail is missing. |
+| `did not finish within 3600s` | The plan takes longer than the timeout. Raise `timeout`, and your CI's own job timeout above it. |
 
-Every option also reads a `CONTEXTQA_*` environment variable; run `contextqa --help` for the list.
-The token is read from `CONTEXTQA_TOKEN` only, never from a flag, so it stays out of process listings.
+## Security
 
-### Tokens
+- The token is masked in logs on every supported CI and is only ever sent to your ContextQA API.
+- Mobile builds are uploaded through a short-lived signed URL scoped to your workspace; the URL is never logged.
+- The GitHub Action and the container image are built from this repository and published by its release
+  workflow. Pin a full version (`@v1.2.3`, `:1.2.3`) if your policy requires immutable references.
 
-- **API token** (`token_…`, recommended): scoped, expiring, revocable. Give it `TEST_PLAN_EXECUTE`,
-  `TEST_PLAN_RESULTS_READ`, plus `TEST_PLAN_BUILD_UPLOAD` to upload builds and `TEST_CASE_RESULTS_READ`
-  for per-test JUnit results.
-- **CI token** (legacy): still accepted. Reports run counts only, so JUnit has a single case for the run.
+## Versioning
 
-### Mobile builds
+`@v1`, `:1` and `@1` always point to the latest 1.x release. Changes that would break an existing pipeline
+(removed inputs, changed exit codes) only ship in a new major version. Release notes are on the
+[releases page](https://github.com/indivatools/contextqa-ci/releases).
 
-`--android-build` / `--ios-build` take either a local path (uploaded through a presigned URL — no cloud
-credentials needed in CI) or an `https://` URL the server can fetch.
+## Support
 
-## Development
+Documentation lives at [learning.contextqa.com](https://learning.contextqa.com). For help, contact your
+ContextQA team or open an issue in this repository.
 
-```sh
-npm install
-npm run check      # build + typecheck + tests
-```
-
-`packages/core` holds the API client and run logic, `packages/cli` is the `contextqa` command, and
-`packages/github-action` is bundled into `dist/index.js` by `npm run bundle`. Commit `dist/` with any
-source change; CI fails when it is stale.
-API contract: `docs/api/test-plan-ci-execution.md` in ts-portal-server. Releases: [docs/RELEASING.md](docs/RELEASING.md).
+Contributing and release process: [CONTRIBUTING.md](CONTRIBUTING.md).

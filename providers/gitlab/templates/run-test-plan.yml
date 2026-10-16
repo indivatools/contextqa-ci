@@ -2,7 +2,7 @@
 # it passes. JUnit results appear in the merge request's test summary.
 #
 #   include:
-#     - component: $CI_SERVER_FQDN/<group>/contextqa-ci/run-test-plan@1
+#     - component: gitlab.com/contextqa/contextqa-ci/run-test-plan@1
 #       inputs:
 #         plan-id: "827"
 #
