@@ -6,7 +6,7 @@ failing test cases show on the job's **Tests** tab.
 ```yaml
 version: 2.1
 orbs:
-  contextqa: contextqa/run-test-plan@1   # namespace TBD
+  contextqa: contextqa/run-test-plan@1
 workflows:
   test:
     jobs:

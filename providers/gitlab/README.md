@@ -5,7 +5,7 @@ pipeline unless it passes. Results show in the merge request's test summary and 
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<group>/contextqa-ci/run-test-plan@1
+  - component: gitlab.com/contextqa/contextqa-ci/run-test-plan@1
     inputs:
       plan-id: "827"
       android-build: build/app-release.apk   # optional, e.g. an artifact from your build job
@@ -20,8 +20,8 @@ All inputs are listed in [`templates/run-test-plan.yml`](templates/run-test-plan
 
 ## Self-managed GitLab
 
-Mirror this directory into a project on your instance and include it from there, or skip the component and
-use the image directly:
+Mirror this directory into a project on your instance and include it as
+`$CI_SERVER_FQDN/<group>/<project>/run-test-plan@1`, or skip the component and use the image directly:
 
 ```yaml
 contextqa:
