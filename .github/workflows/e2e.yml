@@ -1,0 +1,59 @@
+# Runs the Action exactly as a customer does, against a real ContextQA test
+# plan on dev. Not on pull requests: a public repo must not hand the secret to
+# fork PRs. Needs the CONTEXTQA_DEV_TOKEN secret (an API token with
+# TEST_PLAN_EXECUTE, TEST_PLAN_RESULTS_READ and TEST_CASE_RESULTS_READ).
+name: e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan-id:
+        description: Dev test plan to run
+        default: '3'
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e
+  cancel-in-progress: false
+
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      HAS_TOKEN: ${{ secrets.CONTEXTQA_DEV_TOKEN != '' }}
+    steps:
+      - if: env.HAS_TOKEN != 'true'
+        run: echo "::notice::CONTEXTQA_DEV_TOKEN is not set — skipping the end-to-end run"
+      - if: env.HAS_TOKEN == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: run
+        if: env.HAS_TOKEN == 'true'
+        uses: ./
+        with:
+          plan-id: ${{ inputs.plan-id || '3' }}
+          token: ${{ secrets.CONTEXTQA_DEV_TOKEN }}
+          api-url: https://server.dev.contextqa.com
+          timeout: '1800'
+          junit-path: reports/contextqa.xml
+          # The dev plans' own verdict is not under test here; the integration is.
+          fail-on: never
+      - name: The run completed and every output is set
+        if: env.HAS_TOKEN == 'true'
+        env:
+          RUN_ID: ${{ steps.run.outputs.run-id }}
+          RESULT: ${{ steps.run.outputs.result }}
+          TOTAL: ${{ steps.run.outputs.total-count }}
+          REPORT: ${{ steps.run.outputs.report-url }}
+        run: |
+          set -eu
+          echo "run=$RUN_ID result=$RESULT total=$TOTAL report=$REPORT"
+          test -n "$RUN_ID" && test -n "$RESULT" && test -n "$REPORT"
+          test "$TOTAL" -gt 0
+          grep -q '<testcase ' reports/contextqa.xml
