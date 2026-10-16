@@ -12,8 +12,7 @@ include:
 ```
 
 1. Add `CONTEXTQA_TOKEN` under **Settings › CI/CD › Variables**, masked (and protected if only protected
-   branches run it). Use an API token with `TEST_PLAN_EXECUTE` and `TEST_PLAN_RESULTS_READ`, plus
-   `TEST_PLAN_BUILD_UPLOAD` to upload builds and `TEST_CASE_RESULTS_READ` for per-test results.
+   branches run it). Use an API token with `TEST_PLAN_EXECUTE` (which also covers build uploads) and `TEST_PLAN_RESULTS_READ`, plus `TEST_CASE_RESULTS_READ` for per-test results.
 2. Include the component. It adds one job (default name `contextqa`, stage `test`).
 
 All inputs are listed in [`templates/run-test-plan.yml`](templates/run-test-plan.yml).

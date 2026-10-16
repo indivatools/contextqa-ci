@@ -27,10 +27,9 @@ You need two things from ContextQA:
 
    | Permission | Needed for |
    |---|---|
-   | `TEST_PLAN_EXECUTE` | starting the run (required) |
+   | `TEST_PLAN_EXECUTE` | starting the run, and uploading a mobile build (required) |
    | `TEST_PLAN_RESULTS_READ` | waiting for the result (required) |
    | `TEST_CASE_RESULTS_READ` | per-test results in your CI's test report (recommended) |
-   | `TEST_PLAN_BUILD_UPLOAD` | uploading a mobile build from the pipeline (mobile plans only) |
 
    Store it as a secret in your CI, named `CONTEXTQA_TOKEN`. Never commit it to the repository.
 

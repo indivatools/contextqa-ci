@@ -26,8 +26,7 @@ pipeline {
    `contextqa`, default version `v1`, retrieval *Modern SCM › Git*, repository
    `https://github.com/indivatools/contextqa-ci.git`, **Library Path** `providers/jenkins/`.
 2. **Add the token** as a *Secret text* credential (ID `contextqa-token` above). Use an API token with
-   `TEST_PLAN_EXECUTE` and `TEST_PLAN_RESULTS_READ`, plus `TEST_PLAN_BUILD_UPLOAD` to upload builds and
-   `TEST_CASE_RESULTS_READ` for per-test results.
+   `TEST_PLAN_EXECUTE` (which also covers build uploads) and `TEST_PLAN_RESULTS_READ`, plus `TEST_CASE_RESULTS_READ` for per-test results.
 3. **The agent needs Node or Docker.** The step runs `npx @contextqa/cli@1`, or the
    `ghcr.io/indivatools/contextqa-cli:1` image when there is no Node. Force one with `runner: 'npx'` or
    `runner: 'docker'`.
