@@ -57,3 +57,31 @@ jobs:
           test -n "$RUN_ID" && test -n "$RESULT" && test -n "$REPORT"
           test "$TOTAL" -gt 0
           grep -q '<testcase ' reports/contextqa.xml
+
+  # The same run through the published reference customers copy, so a broken
+  # release tag shows up here rather than in a customer's pipeline.
+  published:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: action
+    env:
+      HAS_TOKEN: ${{ secrets.CONTEXTQA_DEV_TOKEN != '' }}
+    steps:
+      - if: env.HAS_TOKEN != 'true'
+        run: echo "::notice::CONTEXTQA_DEV_TOKEN is not set — skipping the published-tag run"
+      - id: run
+        if: env.HAS_TOKEN == 'true'
+        # The moving major tag is the thing under test here, so it is not pinned to a SHA.
+        uses: indivatools/contextqa-ci@v1 # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+        with:
+          plan-id: ${{ inputs.plan-id || '3' }}
+          token: ${{ secrets.CONTEXTQA_DEV_TOKEN }}
+          api-url: https://server.dev.contextqa.com
+          timeout: '1800'
+          fail-on: never
+      - name: The published Action completed a run
+        if: env.HAS_TOKEN == 'true'
+        env:
+          RUN_ID: ${{ steps.run.outputs.run-id }}
+          RESULT: ${{ steps.run.outputs.result }}
+        run: test -n "$RUN_ID" && test -n "$RESULT" && echo "run=$RUN_ID result=$RESULT"
