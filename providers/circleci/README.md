@@ -16,8 +16,7 @@ workflows:
 ```
 
 1. Put `CONTEXTQA_TOKEN` in a [context](https://circleci.com/docs/contexts/) (or a project environment
-   variable). Use an API token with `TEST_PLAN_EXECUTE` and `TEST_PLAN_RESULTS_READ`, plus
-   `TEST_PLAN_BUILD_UPLOAD` to upload builds and `TEST_CASE_RESULTS_READ` for per-test results.
+   variable). Use an API token with `TEST_PLAN_EXECUTE` (which also covers build uploads) and `TEST_PLAN_RESULTS_READ`, plus `TEST_CASE_RESULTS_READ` for per-test results.
 2. Allow third-party orbs in **Organization Settings › Security** if your organization restricts them.
 
 To test a build from an earlier job, persist it to the workspace and pass `workspace-root` and
