@@ -11,6 +11,9 @@ const MAX_TEST_CASE_PAGES = 100;
 /** Step results of one test case are read in a single page. */
 const STEP_RESULT_PAGE_SIZE = 1000;
 const FAILED_STEP_RESULTS = new Set(['FAILURE', 'ABORTED']);
+const MS_PER_SECOND = 1_000;
+/** Epoch millis passed 1e11 in 1973; a smaller timestamp is in seconds. */
+const EPOCH_SECONDS_BELOW = 1e11;
 /** A failed-step screenshot is a page capture; anything bigger is not one and is not kept in memory. */
 const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
 const SCREENSHOT_TOO_LARGE = 'screenshot download: larger than 10 MB';
@@ -390,10 +393,16 @@ function stringField(record: Record<string, unknown>, name: string): string | un
   return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
-/** A server timestamp as ISO-8601, whether it was sent as text or as epoch millis. */
+/**
+ * A server timestamp as ISO-8601, whether it was sent as text, epoch millis or epoch seconds. A value no
+ * date can hold is undefined rather than an error: it is read on every poll, and must never fail the run.
+ */
 function timestampField(record: Record<string, unknown>, name: string): string | undefined {
-  const millis = numberField(record, name);
-  return millis === undefined ? stringField(record, name) : new Date(millis).toISOString();
+  const value = numberField(record, name);
+  if (value === undefined) return stringField(record, name);
+  const millis = value < EPOCH_SECONDS_BELOW ? value * MS_PER_SECOND : value;
+  const date = new Date(millis);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 /** A whole number sent either as a JSON number or as text (`"3"`). */
