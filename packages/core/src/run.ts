@@ -1,12 +1,13 @@
 import { openAsBlob } from 'node:fs';
-import { stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { basename, isAbsolute, join, relative } from 'node:path';
 import { isApiToken } from './auth.js';
-import { ContextQAClient, defaultSleep, type ClientDeps, type SleepFn } from './client.js';
+import { ContextQAClient, defaultSleep, screenshotUrlOf, type ClientDeps, type SleepFn } from './client.js';
 import { AuthError, ConfigError, InfraError, RunTimeoutError } from './errors.js';
 import {
   RUN_STATUS_COMPLETED,
   type BuildSource,
+  type FailedStep,
   type Reporter,
   type RunOptions,
   type RunResults,
@@ -18,6 +19,11 @@ const MS_PER_SECOND = 1_000;
 const BYTES_PER_MB = 1024 * 1024;
 const PASSING_RESULT = 'SUCCESS';
 const PLAN_ID_PATTERN = /^\d+$/;
+const NOT_PASSING = new Set(['FAILURE', 'ABORTED']);
+/** Failure details cost two calls per failed test; past this many, the report link has the rest. */
+const MAX_FAILURE_DETAILS = 50;
+/** Step results that keep failing (not refused) stop being asked for, so an outage can't stall the report. */
+const MAX_STEP_READ_FAILURES = 3;
 
 export interface RunDeps extends ClientDeps {
   now?: () => number;
@@ -53,6 +59,7 @@ export async function runTestPlan(options: RunOptions, reporter: Reporter, deps:
   const results = await waitForCompletion(client, reporter, trigger.id, trigger.url, options, sleep, now);
   const reportUrl = results.reportFileUrl ?? trigger.url;
   const testCases = await collectTestCases(client, reporter, trigger.id, options.token);
+  if (testCases) await addFailureDetails(client, reporter, testCases, options.screenshotDir);
   return {
     runId: trigger.id,
     reportUrl: reportUrl ?? undefined,
@@ -181,4 +188,93 @@ async function collectTestCases(
     }
     throw error;
   }
+}
+
+/**
+ * The failed step, its error and its screenshot for each failed test. The current engine records the
+ * failed step on the result row itself; `GET /test_step_results` (needs `TEST_STEP_RESULTS_READ`) is
+ * only read when that is missing (older runs) or for a screenshot the row does not link. Best-effort
+ * like the per-test results: nothing here can change the verdict.
+ */
+async function addFailureDetails(
+  client: ContextQAClient,
+  reporter: Reporter,
+  testCases: TestCaseOutcome[],
+  screenshotDir: string | undefined,
+): Promise<void> {
+  const failing = testCases.filter((t) => NOT_PASSING.has(t.result)).slice(0, MAX_FAILURE_DETAILS);
+  let canReadSteps = true;
+  let readFailures = 0;
+  for (const testCase of failing) {
+    const needsStepRow = !testCase.failedStep || (screenshotDir !== undefined && !screenshotUrlOf(testCase));
+    let stepRow: FailedStep | undefined;
+    if (needsStepRow && canReadSteps) {
+      try {
+        stepRow = await client.failedStep(testCase.id);
+        readFailures = 0;
+      } catch (error) {
+        if (error instanceof AuthError) {
+          // Refused once is refused for the run. The permission is optional: when the row already
+          // carries the failed step, only its screenshot is lost, which is not worth a warning.
+          canReadSteps = false;
+          const message = 'the token lacks the TEST_STEP_RESULTS_READ permission.';
+          if (testCase.failedStep) reporter.info(`Failed-step screenshots skipped: ${message}`);
+          else reporter.warn(`Step results skipped: ${message}`);
+        } else {
+          readFailures += 1;
+          if (readFailures === 1) reporter.warn(`Step results unavailable: ${errorText(error)}`);
+          if (readFailures >= MAX_STEP_READ_FAILURES) canReadSteps = false;
+        }
+      }
+    }
+    testCase.failedStep ??= stepRow;
+    if (screenshotDir) {
+      testCase.screenshotPath = await saveScreenshot(client, reporter, screenshotDir, testCase, stepRow);
+      if (testCase.screenshotPath && testCase.failedStep) testCase.failedStep.hasScreenshot = true;
+    }
+  }
+}
+
+async function saveScreenshot(
+  client: ContextQAClient,
+  reporter: Reporter,
+  dir: string,
+  testCase: TestCaseOutcome,
+  stepRow: FailedStep | undefined,
+): Promise<string | undefined> {
+  const signedUrl = screenshotUrlOf(testCase) ?? screenshotUrlOf(stepRow);
+  const stepResultId = stepRow?.hasScreenshot ? stepRow.stepResultId : undefined;
+  if (!signedUrl && stepResultId === undefined) return undefined;
+  try {
+    const image = signedUrl ? await client.downloadImage(signedUrl) : await client.stepScreenshot(stepResultId!);
+    if (!image) return undefined;
+    const path = join(dir, `${testCase.id}${imageExtension(image)}`);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path, image);
+    return attachmentPath(path);
+  } catch (error) {
+    reporter.warn(`Screenshot for test case result ${testCase.id} not saved: ${errorText(error)}`);
+    return undefined;
+  }
+}
+
+/**
+ * The path JUnit attachments use. GitLab and Jenkins resolve `[[ATTACHMENT|…]]` against the project
+ * workspace, so a file inside the working directory is written relative to it.
+ */
+function attachmentPath(path: string): string {
+  if (!isAbsolute(path)) return path;
+  const fromCwd = relative(process.cwd(), path);
+  return fromCwd && !fromCwd.startsWith('..') && !isAbsolute(fromCwd) ? fromCwd : path;
+}
+
+function imageExtension(image: Uint8Array): string {
+  const isPng = image[0] === 0x89 && image[1] === 0x50 && image[2] === 0x4e && image[3] === 0x47;
+  if (isPng) return '.png';
+  const isJpeg = image[0] === 0xff && image[1] === 0xd8;
+  return isJpeg ? '.jpg' : '.img';
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

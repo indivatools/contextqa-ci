@@ -28,7 +28,13 @@ export interface TriggerResponse {
 export interface RunResults {
   status: string;
   result: string;
+  /** Sum of the test case durations (ms); larger than the wall-clock when cases run in parallel. */
   duration?: number | null;
+  /** Run start and end as the server reports them (ISO-8601). */
+  startTime?: string | null;
+  endTime?: string | null;
+  /** Wall-clock run time (ms): `endTime - startTime`. Undefined when either is missing. */
+  wallClockMs?: number;
   totalCount: number;
   passedCount: number;
   failedCount: number;
@@ -47,6 +53,29 @@ export interface TestCaseOutcome {
   durationMs: number;
   message: string;
   traceViewerUrl?: string;
+  /** The step that failed, when the token may read step results. */
+  failedStep?: FailedStep;
+  /** The failed step's screenshot, saved next to the JUnit report. */
+  screenshotPath?: string;
+}
+
+/**
+ * The first failed step of a test case result: from the result row's `executedResult.failed_test_steps`
+ * (current execution engine), else from `GET /test_step_results` (older runs).
+ */
+export interface FailedStep {
+  /** The step result row, when the step came from `GET /test_step_results`. */
+  stepResultId?: number;
+  /** 1-based position of the step in the test case, when known. */
+  stepIndex?: number;
+  /** What the step does, as written in the test case. */
+  step: string;
+  message: string;
+  expected?: string;
+  /** Failure type, e.g. `ELEMENT_NOT_FOUND`. */
+  type?: string;
+  exception?: string;
+  hasScreenshot: boolean;
 }
 
 /** Where a mobile build comes from. */
@@ -67,6 +96,8 @@ export interface RunOptions {
   wait: boolean;
   pollIntervalSeconds: number;
   timeoutSeconds: number;
+  /** Save each failed step's screenshot into this directory (usually next to the JUnit report). */
+  screenshotDir?: string;
 }
 
 export interface RunSummary {

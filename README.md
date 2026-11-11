@@ -30,6 +30,7 @@ You need two things from ContextQA:
    | `TEST_PLAN_EXECUTE` | starting the run, and uploading a mobile build (required) |
    | `TEST_PLAN_RESULTS_READ` | waiting for the result (required) |
    | `TEST_CASE_RESULTS_READ` | per-test results in your CI's test report (recommended) |
+   | `TEST_STEP_RESULTS_READ` | failed-step screenshots, and failure details for runs from older ContextQA versions (optional) |
 
    Store it as a secret in your CI, named `CONTEXTQA_TOKEN`. Never commit it to the repository.
 
@@ -56,8 +57,10 @@ jobs:
 Add `CONTEXTQA_TOKEN` under **Settings › Secrets and variables › Actions**. On every run you get:
 
 - the job failing unless the test plan passed,
-- a summary on the run page with counts, a link to the full ContextQA report, and each failing test case
-  linked to its trace,
+- a summary on the run page with counts, the run's **Duration** (start to end, as ContextQA's *Total Plan
+  Duration*) and its **Test execution time** (the tests' own time added up, as ContextQA's *Actual TC
+  Execution Time*), a link to the full ContextQA report, and each failing test case with its error and
+  failed step, linked to its trace,
 - an annotation for every failing test case,
 - outputs for later steps: `run-id`, `report-url`, `result`, `passed`, `total-count`, `passed-count`,
   `failed-count`.
@@ -76,8 +79,33 @@ Add `CONTEXTQA_TOKEN` under **Settings › Secrets and variables › Actions**. 
 | `poll-interval` | `15` | Seconds between status checks. |
 | `wait` | `true` | `false` starts the run and moves on without waiting. |
 | `fail-on` | `failure` | `never` reports the result without failing the job. |
-| `junit-path` | | Also write JUnit XML to this path. |
+| `junit-path` | | Also write JUnit XML to this path, with failed-step screenshots in a `contextqa-screenshots` folder beside it. |
 | `api-url` | `https://server.contextqa.com` | Change only for a dedicated or on-premises ContextQA. |
+
+</details>
+
+<details>
+<summary>Keeping the JUnit report and its screenshots</summary>
+
+```yaml
+      - uses: indivatools/contextqa-ci@v1
+        with:
+          plan-id: 827
+          token: ${{ secrets.CONTEXTQA_TOKEN }}
+          junit-path: reports/contextqa.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contextqa-report
+          path: reports/
+```
+
+The report lists each test case under its current name in ContextQA, with its own duration; the run's and
+the suite's `time` is the run's wall-clock. A failing test carries the step that failed, its error, the
+expected result and the failure type, and a link to the full ContextQA report. The failed step's screenshot
+is saved to `reports/contextqa-screenshots/` and referenced from the report as `[[ATTACHMENT|…]]` (shown by
+Jenkins and GitLab); some screenshots need `TEST_STEP_RESULTS_READ`. Upload the folder that holds both, as
+above, to keep them.
 
 </details>
 
@@ -141,6 +169,9 @@ test case in their own test report.
 | `refused the token (HTTP 403)` | The token lacks a permission listed in [Before you start](#before-you-start), or the runner's IP is outside the token's allowlist. |
 | `not found (HTTP 404)` | The `api-url` is wrong, or the plan ID does not exist in the token's workspace. |
 | `Per-test results unavailable` | The token lacks `TEST_CASE_RESULTS_READ`. The verdict is unaffected; only per-test detail is missing. |
+| `Step results skipped` / `Failed-step screenshots skipped` | The token lacks `TEST_STEP_RESULTS_READ`. Failure details still come from the run's results; only some screenshots, and details of runs from older ContextQA versions, are missing. |
+| `Step results unavailable` | ContextQA did not answer the step-results request. The verdict and the rest of the report are unaffected; after three failed requests the report stops asking. |
+| `Screenshot for test case result … not saved` | The screenshot could not be fetched in time, or was larger than 10 MB. The failed step is still reported; the screenshot is in the ContextQA report. |
 | `did not finish within 3600s` | The plan takes longer than the timeout. Raise `timeout`, and your CI's own job timeout above it. |
 
 ## Security
@@ -153,8 +184,8 @@ test case in their own test report.
 ## Versioning
 
 `@v1`, `:1` and `@1` always point to the latest 1.x release. Changes that would break an existing pipeline
-(removed inputs, changed exit codes) only ship in a new major version. Release notes are on the
-[releases page](https://github.com/indivatools/contextqa-ci/releases).
+(removed inputs, changed exit codes) only ship in a new major version. What changed in each release is in
+[CHANGELOG.md](CHANGELOG.md) and on the [releases page](https://github.com/indivatools/contextqa-ci/releases).
 
 ## Support
 

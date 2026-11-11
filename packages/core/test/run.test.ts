@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -287,5 +287,357 @@ describe('runTestPlan', () => {
     await expect(runTestPlan(options(override), recordingReporter(), { fetch: new FakeServer().fetch })).rejects.toThrow(
       message,
     );
+  });
+});
+
+describe('runTestPlan reports for CI (CON-6433)', () => {
+  function server(caseRows: Record<string, unknown>[], extraResults: Record<string, unknown> = {}): FakeServer {
+    return new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+      .on('GET', '/test_plan_results/77/results', () => json(results(extraResults)))
+      .on('GET', '/test_case_results', () => json({ content: caseRows, last: true }));
+  }
+
+  it("works out the run's wall-clock from its start and end", async () => {
+    const fake = server([], { startTime: '2026-01-10T10:00:00.000+00:00', endTime: '2026-01-10T10:22:30.000+00:00', duration: 3_600_000 });
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.results?.wallClockMs).toBe(1_350_000);
+    expect(summary.results?.duration).toBe(3_600_000);
+  });
+
+  it('reads start and end sent as epoch millis too', async () => {
+    const fake = server([], { startTime: 1_768_039_200_000, endTime: 1_768_040_550_000 });
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.results?.wallClockMs).toBe(1_350_000);
+  });
+
+  it('leaves the wall-clock undefined without a start or an end', async () => {
+    const fake = server([], { startTime: '2026-01-10T10:00:00Z', endTime: null });
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.results?.wallClockMs).toBeUndefined();
+  });
+
+  it("names each test after the test case's current name, falling back to the saved one", async () => {
+    const fake = server([
+      testCaseRow(1, 'SUCCESS', { testCaseDetails: { name: 'Placeholder name' }, testCase: { name: 'TC-12 Checkout with saved card' } }),
+      testCaseRow(2, 'SUCCESS', { testCaseDetails: { name: 'Saved name' }, testCase: null }),
+      testCaseRow(3, 'SUCCESS', { testCaseDetails: null, testCase: null }),
+    ]);
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.map((t) => t.name)).toEqual(['TC-12 Checkout with saved card', 'Saved name', 'Test case 1003']);
+  });
+
+  it('adds the failed step and saves its screenshot without sending the token to storage', async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), 'cqa-shots-')), 'contextqa-screenshots');
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+    const fake = server([testCaseRow(1, 'SUCCESS'), testCaseRow(2, 'FAILURE')], { result: 'FAILURE' })
+      .on('GET', '/test_step_results', () =>
+        json({
+          content: [
+            { id: 500, result: 'SUCCESS', stepDetails: { action: 'Open login' } },
+            { id: 501, result: 'FAILURE', message: 'Timed out after 30s', webDriverException: 'NoSuchElementException', screenshotName: '501.png', stepDetails: { action: 'Click on Submit' } },
+            { id: 502, result: 'FAILURE', message: 'later', stepDetails: { action: 'Later step' } },
+          ],
+        }),
+      )
+      .on('GET', '/test_step_results/501', () => json({ id: 501, screenShotURL: 'https://storage.example.com/shots/501.png?X-Amz-Signature=SECRET' }))
+      .on('GET', '/shots/501.png', () => new Response(png, { status: 200 }));
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options({ screenshotDir: dir }), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.passed).toBe(false);
+    const failed = summary.testCases?.find((t) => t.id === 2);
+    expect(failed?.failedStep).toEqual({
+      stepResultId: 501,
+      step: 'Click on Submit',
+      message: 'Timed out after 30s',
+      exception: 'NoSuchElementException',
+      hasScreenshot: true,
+    });
+    expect(failed?.screenshotPath).toBe(join(dir, '2.png'));
+    expect(new Uint8Array(await readFile(join(dir, '2.png')))).toEqual(png);
+    expect(summary.testCases?.find((t) => t.id === 1)?.failedStep).toBeUndefined();
+
+    const listing = fake.calls('/test_step_results')[0]!;
+    expect(listing.url.searchParams.get('query')).toBe('testCaseResultId:2');
+    const download = fake.calls('/shots/501.png')[0]!;
+    expect(download.headers.get('authorization')).toBeNull();
+    expect(reporter.lines.join('\n')).not.toContain('SECRET');
+  });
+
+  it('keeps the short message when the token may not read step results', async () => {
+    const fake = server([testCaseRow(2, 'FAILURE'), testCaseRow(3, 'FAILURE')], { result: 'FAILURE' }).on(
+      'GET',
+      '/test_step_results',
+      () => text('Forbidden', 403),
+    );
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options({ screenshotDir: '/tmp/never' }), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.passed).toBe(false);
+    expect(summary.testCases?.every((t) => t.failedStep === undefined && t.screenshotPath === undefined)).toBe(true);
+    expect(summary.testCases?.[0]?.message).toBe('Element not found: #submit');
+    expect(fake.calls('/test_step_results')).toHaveLength(1);
+    expect(reporter.lines).toContain('WARN Step results skipped: the token lacks the TEST_STEP_RESULTS_READ permission.');
+  });
+
+  it('adds the failed step but downloads nothing when no screenshot folder is given', async () => {
+    const fake = server([testCaseRow(2, 'FAILURE')], { result: 'FAILURE' }).on('GET', '/test_step_results', () =>
+      json({ content: [{ id: 501, result: 'FAILURE', message: 'Timed out', screenshotName: '501.png', stepDetails: { action: 'Click' } }] }),
+    );
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.failedStep?.step).toBe('Click');
+    expect(summary.testCases?.[0]?.screenshotPath).toBeUndefined();
+    expect(fake.calls('/test_step_results/501')).toHaveLength(0);
+  });
+
+  it('still reports the step when its screenshot cannot be fetched', async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), 'cqa-shots-')), 'contextqa-screenshots');
+    const fake = server([testCaseRow(2, 'FAILURE')], { result: 'FAILURE' })
+      .on('GET', '/test_step_results', () =>
+        json({ content: [{ id: 501, result: 'FAILURE', message: 'Timed out', screenshotName: '501.png', stepDetails: { action: 'Click' } }] }),
+      )
+      .on('GET', '/test_step_results/501', () => json({ id: 501, screenShotURL: 'https://storage.example.com/shots/501.png?sig=SECRET' }))
+      .on('GET', '/shots/501.png', () => text('expired', 403));
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options({ screenshotDir: dir }), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.failedStep?.step).toBe('Click');
+    expect(summary.testCases?.[0]?.screenshotPath).toBeUndefined();
+    expect(reporter.lines.some((l) => l.startsWith('WARN Screenshot for test case result 2 not saved'))).toBe(true);
+    expect(reporter.lines.join('\n')).not.toContain('SECRET');
+  });
+
+  /** A failed result row as the current execution engine writes it (shape from a real run, values made up). */
+  function engineFailedRow(id: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return testCaseRow(id, 'FAILURE', {
+      shortMessage: null,
+      message: '',
+      executedResult: {
+        failed_test_steps: [
+          {
+            humanReadableText: 'Click on Pay',
+            reason: 'The Pay button is not on the screen',
+            actual_result: 'The Pay button is not on the screen',
+            expected_result: 'The order is paid',
+            failed_step_index: '3',
+            type: 'ELEMENT_NOT_FOUND',
+            stepScreenshotUrl: null,
+          },
+        ],
+        cqa_failureContext: { error: { outputMessage: 'context message' }, failure_classification: { category: 'element_not_found' } },
+      },
+      ...extra,
+    });
+  }
+
+  it("reads the failed step from the result row itself, with no extra call and no extra permission", async () => {
+    const fake = server([engineFailedRow(2)], { result: 'FAILURE' });
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.failedStep).toEqual({
+      stepIndex: 3,
+      step: 'Click on Pay',
+      message: 'The Pay button is not on the screen',
+      expected: 'The order is paid',
+      type: 'ELEMENT_NOT_FOUND',
+      hasScreenshot: false,
+    });
+    expect(fake.calls('/test_step_results')).toHaveLength(0);
+  });
+
+  it('reads executedResult sent as a JSON string, and falls back to the failure context message', async () => {
+    const executedResult = JSON.stringify({ failed_test_steps: [], cqa_failureContext: { error: { outputMessage: 'context message' } } });
+    const fake = server([testCaseRow(2, 'FAILURE', { shortMessage: null, executedResult })], { result: 'FAILURE' });
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.failedStep?.message).toBe('context message');
+  });
+
+  it("downloads the screenshot the result row links, keeping the signed URL out of the summary", async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), 'cqa-shots-')), 'contextqa-screenshots');
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 1]);
+    const row = engineFailedRow(2);
+    (row['executedResult'] as { failed_test_steps: Record<string, unknown>[] }).failed_test_steps[0]!['stepScreenshotUrl'] =
+      'https://storage.example.com/shots/2.jpg?X-Amz-Signature=SECRET';
+    const fake = server([row], { result: 'FAILURE' }).on('GET', '/shots/2.jpg', () => new Response(jpeg, { status: 200 }));
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options({ screenshotDir: dir }), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.screenshotPath).toBe(join(dir, '2.jpg'));
+    expect(new Uint8Array(await readFile(join(dir, '2.jpg')))).toEqual(jpeg);
+    expect(fake.calls('/test_step_results')).toHaveLength(0);
+    expect(fake.calls('/shots/2.jpg')[0]!.headers.get('authorization')).toBeNull();
+    expect(JSON.stringify(summary)).not.toContain('SECRET');
+    expect(reporter.lines.join('\n')).not.toContain('SECRET');
+  });
+
+  it("takes the screenshot from the step row's ready URL when the result row links none", async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), 'cqa-shots-')), 'contextqa-screenshots');
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 2]);
+    const fake = server([engineFailedRow(2)], { result: 'FAILURE' })
+      .on('GET', '/test_step_results', () =>
+        json({
+          content: [
+            {
+              id: 801,
+              result: 'FAILURE',
+              stepDetails: {},
+              message: null,
+              screenshotName: 'https://storage.example.com/shots/801.png?sig=SECRET',
+              screenshots: { before: 'https://storage.example.com/shots/801-before.png?sig=SECRET' },
+            },
+          ],
+        }),
+      )
+      .on('GET', '/shots/801.png', () => new Response(png, { status: 200 }));
+
+    const summary = await runTestPlan(options({ screenshotDir: dir }), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.failedStep?.step).toBe('Click on Pay');
+    expect(summary.testCases?.[0]?.failedStep?.hasScreenshot).toBe(true);
+    expect(summary.testCases?.[0]?.screenshotPath).toBe(join(dir, '2.png'));
+    expect(fake.calls('/test_step_results/801')).toHaveLength(0);
+    expect(JSON.stringify(summary)).not.toContain('SECRET');
+  });
+
+  it("reads an older run's error from the step's log when its message is empty", async () => {
+    const fake = server([testCaseRow(2, 'FAILURE', { shortMessage: null })], { result: 'FAILURE' }).on('GET', '/test_step_results', () =>
+      json({
+        content: [
+          {
+            id: 801,
+            result: 'FAILURE',
+            stepDetails: {},
+            logsList: {
+              logs: [
+                { uiType: 'AI_AGENT_ACTION', status: 'passed', text: 'Opened the app' },
+                { uiType: 'STOP', status: 'failed', text: 'None', value: 'The screen shows another app' },
+                { uiType: 'DONE', status: 'passed', text: 'None' },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.failedStep?.message).toBe('The screen shows another app');
+  });
+
+  it('keeps asking for step results after one failed read, and warns once', async () => {
+    const fake = server([testCaseRow(2, 'FAILURE'), testCaseRow(3, 'FAILURE')], { result: 'FAILURE' }).on(
+      'GET',
+      '/test_step_results',
+      () => text('down', 503),
+      () => text('down', 503),
+      () => text('down', 503),
+      () => json({ content: [{ id: 601, result: 'FAILURE', message: 'Timed out', stepDetails: { action: 'Click' } }] }),
+    );
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options(), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.find((t) => t.id === 2)?.failedStep).toBeUndefined();
+    expect(summary.testCases?.find((t) => t.id === 3)?.failedStep?.step).toBe('Click');
+    expect(reporter.lines.filter((l) => l.startsWith('WARN Step results unavailable'))).toHaveLength(1);
+  });
+
+  it('stops asking for step results after repeated failures', async () => {
+    const rows = [2, 3, 4, 5, 6].map((id) => testCaseRow(id, 'FAILURE'));
+    const fake = server(rows, { result: 'FAILURE' }).on('GET', '/test_step_results', () => text('down', 503));
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options(), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.passed).toBe(false);
+    // Three test cases, three attempts each; the last two are never asked about.
+    expect(fake.calls('/test_step_results')).toHaveLength(9);
+    expect(reporter.lines.filter((l) => l.startsWith('WARN'))).toHaveLength(1);
+  });
+
+  it('only notes, without warning, that screenshots need the optional permission when the row has the failed step', async () => {
+    const fake = server([engineFailedRow(2)], { result: 'FAILURE' }).on('GET', '/test_step_results', () => text('Forbidden', 403));
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options({ screenshotDir: '/tmp/never' }), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.failedStep?.step).toBe('Click on Pay');
+    expect(reporter.lines).toContain('Failed-step screenshots skipped: the token lacks the TEST_STEP_RESULTS_READ permission.');
+    expect(reporter.lines.some((l) => l.startsWith('WARN'))).toBe(false);
+  });
+
+  it('refuses a screenshot larger than 10 MB', async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), 'cqa-shots-')), 'contextqa-screenshots');
+    const signed = 'https://storage.example.com/shots/big.png?sig=SECRET';
+    const fake = server([engineFailedRow(2, { executedResult: { failed_test_steps: [{ humanReadableText: 'Click', reason: 'x', stepScreenshotUrl: signed }] } })], {
+      result: 'FAILURE',
+    }).on('GET', '/shots/big.png', () => new Response(new Uint8Array([0x89]), { status: 200, headers: { 'Content-Length': String(11 * 1024 * 1024) } }));
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options({ screenshotDir: dir }), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.screenshotPath).toBeUndefined();
+    expect(reporter.lines).toContain('WARN Screenshot for test case result 2 not saved: screenshot download: larger than 10 MB');
+  });
+
+  it('never quotes the signed URL when the download fails at the network level', async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), 'cqa-shots-')), 'contextqa-screenshots');
+    const signed = 'https://storage.example.com/shots/net.png?sig=SECRET';
+    const fake = server([engineFailedRow(2, { executedResult: { failed_test_steps: [{ humanReadableText: 'Click', reason: 'x', stepScreenshotUrl: signed }] } })], {
+      result: 'FAILURE',
+    }).on('GET', '/shots/net.png', () => {
+      throw new TypeError(`Failed to fetch ${signed}`);
+    });
+    const reporter = recordingReporter();
+
+    const summary = await runTestPlan(options({ screenshotDir: dir }), reporter, { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.screenshotPath).toBeUndefined();
+    expect(reporter.lines).toContain('WARN Screenshot for test case result 2 not saved: screenshot download: network error');
+    expect(reporter.lines.join('\n')).not.toContain('SECRET');
+  });
+
+  it('writes the attachment path relative to the working directory when the report is inside it', async () => {
+    const root = await mkdtemp(join(process.cwd(), '.cqa-shots-'));
+    try {
+      const dir = join(root, 'contextqa-screenshots');
+      const signed = 'https://storage.example.com/shots/rel.png?sig=SECRET';
+      const fake = server([engineFailedRow(2, { executedResult: { failed_test_steps: [{ humanReadableText: 'Click', reason: 'x', stepScreenshotUrl: signed }] } })], {
+        result: 'FAILURE',
+      }).on('GET', '/shots/rel.png', () => new Response(new Uint8Array([0xff, 0xd8, 1]), { status: 200 }));
+
+      const summary = await runTestPlan(options({ screenshotDir: dir }), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+      const saved = summary.testCases?.[0]?.screenshotPath;
+      expect(saved).toBe(join(root.slice(process.cwd().length + 1), 'contextqa-screenshots', '2.jpg'));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('makes no step-result calls for a passing run', async () => {
+    const fake = server([testCaseRow(1, 'SUCCESS')]);
+
+    await runTestPlan(options({ screenshotDir: '/tmp/never' }), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(fake.calls('/test_step_results')).toHaveLength(0);
   });
 });

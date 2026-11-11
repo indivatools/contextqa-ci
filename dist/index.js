@@ -19649,8 +19649,8 @@ function info(message) {
 }
 
 // packages/github-action/src/main.ts
-import { mkdir as mkdir2, writeFile as writeFile2 } from "node:fs/promises";
-import { dirname } from "node:path";
+import { mkdir as mkdir3, writeFile as writeFile3 } from "node:fs/promises";
+import { dirname as dirname2 } from "node:path";
 
 // packages/core/src/auth.ts
 var API_TOKEN_PREFIX = "token_";
@@ -19718,12 +19718,20 @@ var RETRY_BASE_DELAY_MS = 1e3;
 var ERROR_BODY_LIMIT = 500;
 var TEST_CASE_PAGE_SIZE = 100;
 var MAX_TEST_CASE_PAGES = 100;
+var STEP_RESULT_PAGE_SIZE = 1e3;
+var FAILED_STEP_RESULTS = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
+var MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
+var SCREENSHOT_TOO_LARGE = "screenshot download: larger than 10 MB";
 var HTTP_UNAUTHORIZED = 401;
 var HTTP_FORBIDDEN = 403;
 var HTTP_NOT_FOUND = 404;
 var HTTP_TOO_MANY_REQUESTS = 429;
 var HTTP_SERVER_ERROR_MIN = 500;
 var defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+var screenshotUrls = /* @__PURE__ */ new WeakMap();
+function screenshotUrlOf(holder) {
+  return holder ? screenshotUrls.get(holder) : void 0;
+}
 var ContextQAClient = class {
   constructor(apiUrl, token, deps = {}) {
     this.token = token;
@@ -19767,10 +19775,15 @@ var ContextQAClient = class {
   async results(runId) {
     const body = await this.getJson(`/test_plan_results/${runId}/results`, {}, true);
     const record = asRecord(body);
+    const startTime = timestampField(record, "startTime");
+    const endTime = timestampField(record, "endTime");
     return {
       status: stringField(record, "status") ?? "",
       result: stringField(record, "result") ?? "",
       duration: numberField(record, "duration"),
+      startTime,
+      endTime,
+      wallClockMs: elapsedMs(startTime, endTime),
       totalCount: numberField(record, "totalCount") ?? 0,
       passedCount: numberField(record, "passedCount") ?? 0,
       failedCount: numberField(record, "failedCount") ?? 0,
@@ -19806,6 +19819,49 @@ var ContextQAClient = class {
       if (record["last"] !== false || content.length === 0) return outcomes;
     }
     return outcomes;
+  }
+  /**
+   * The first failed or aborted step of a test case result, or undefined when every step passed.
+   * Needs the `TEST_STEP_RESULTS_READ` permission.
+   */
+  async failedStep(testCaseResultId) {
+    const body = await this.getJson(
+      "/test_step_results",
+      { query: `testCaseResultId:${testCaseResultId}`, page: "0", size: String(STEP_RESULT_PAGE_SIZE), sort: "id,asc" },
+      true
+    );
+    const record = asRecord(body);
+    const content = Array.isArray(record["content"]) ? record["content"] : [];
+    const failed = content.map(asRecord).find((row2) => FAILED_STEP_RESULTS.has(stringField(row2, "result") ?? ""));
+    return failed ? toFailedStep(failed) : void 0;
+  }
+  /**
+   * A step's screenshot. The server hands out a short-lived signed storage URL, which is a credential:
+   * it is fetched without our token and never appears in a message.
+   */
+  async stepScreenshot(stepResultId) {
+    const body = await this.getJson(`/test_step_results/${stepResultId}`, {}, true);
+    const signedUrl = stringField(asRecord(body), "screenShotURL");
+    return signedUrl ? this.downloadImage(signedUrl) : void 0;
+  }
+  /** Downloads an image from a signed storage URL: without our token, and never naming the URL. */
+  async downloadImage(signedUrl) {
+    try {
+      return await this.withRetries("screenshot download", async () => {
+        const response = await this.fetchFn(signedUrl);
+        if (!response.ok) {
+          throw new HttpError(response.status, "screenshot download", "");
+        }
+        const declared = Number(response.headers.get("content-length"));
+        if (declared > MAX_SCREENSHOT_BYTES) throw new InfraError(SCREENSHOT_TOO_LARGE);
+        const image = new Uint8Array(await response.arrayBuffer());
+        if (image.byteLength > MAX_SCREENSHOT_BYTES) throw new InfraError(SCREENSHOT_TOO_LARGE);
+        return image;
+      });
+    } catch (error2) {
+      if (error2 instanceof HttpError || error2 instanceof InfraError && error2.message === SCREENSHOT_TOO_LARGE) throw error2;
+      throw new InfraError("screenshot download: network error");
+    }
   }
   async getJson(path, params, retry) {
     const url = new URL(this.apiUrl + path);
@@ -19873,8 +19929,8 @@ function toOutcome(row2) {
   const id = numberField(row2, "id");
   if (id === void 0 || row2["isPrerequisite"] === true) return void 0;
   const testCaseId = numberField(row2, "testCaseId");
-  const name = stringField(asRecord(row2["testCaseDetails"]), "name") ?? stringField(asRecord(row2["testCase"]), "name") ?? `Test case ${testCaseId ?? id}`;
-  return {
+  const name = stringField(asRecord(row2["testCase"]), "name") ?? stringField(asRecord(row2["testCaseDetails"]), "name") ?? `Test case ${testCaseId ?? id}`;
+  const outcome = {
     id,
     name,
     suite: stringField(asRecord(row2["testSuite"]), "name") ?? "ContextQA",
@@ -19883,6 +19939,80 @@ function toOutcome(row2) {
     message: stringField(row2, "shortMessage") ?? stringField(row2, "message") ?? "",
     traceViewerUrl: stringField(row2, "traceViewerUrl")
   };
+  const executedResult = asRecord(parseJsonField(row2["executedResult"]));
+  const failedStep = embeddedFailedStep(executedResult);
+  if (failedStep) {
+    outcome.failedStep = failedStep.step;
+    if (failedStep.screenshotUrl) screenshotUrls.set(outcome, failedStep.screenshotUrl);
+  }
+  return outcome;
+}
+function embeddedFailedStep(executedResult) {
+  const failedSteps = Array.isArray(executedResult["failed_test_steps"]) ? executedResult["failed_test_steps"] : [];
+  const first = asRecord(failedSteps[0]);
+  const failureContext = asRecord(executedResult["cqa_failureContext"]);
+  const contextError = stringField(asRecord(failureContext["error"]), "outputMessage");
+  const message = stringField(first, "reason") ?? stringField(first, "actual_result") ?? contextError;
+  const step = stringField(first, "humanReadableText") ?? firstString(first["steps"]) ?? "";
+  if (!message && !step) return void 0;
+  const screenshotUrl = httpUrl(stringField(first, "stepScreenshotUrl"));
+  return {
+    step: {
+      stepIndex: integerField(first, "failed_step_index"),
+      step,
+      message: message ?? "",
+      expected: stringField(first, "expected_result"),
+      type: stringField(first, "type") ?? stringField(asRecord(failureContext["failure_classification"]), "category"),
+      hasScreenshot: screenshotUrl !== void 0
+    },
+    screenshotUrl
+  };
+}
+function toFailedStep(row2) {
+  const stepResultId = numberField(row2, "id");
+  if (stepResultId === void 0) return void 0;
+  const details = asRecord(row2["stepDetails"]);
+  const screenshotName = stringField(row2, "screenshotName");
+  const screenshotUrl = httpUrl(screenshotName) ?? httpUrl(stringField(asRecord(parseJsonField(row2["screenshots"])), "after")) ?? httpUrl(stringField(asRecord(parseJsonField(row2["screenshots"])), "before"));
+  const failedStep = {
+    stepResultId,
+    step: stringField(details, "action") ?? stringField(details, "stepDescription") ?? "",
+    message: stringField(row2, "message") ?? failedLogText(row2["logsList"]) ?? "",
+    exception: stringField(row2, "webDriverException"),
+    hasScreenshot: screenshotName !== void 0 || screenshotUrl !== void 0
+  };
+  if (screenshotUrl) screenshotUrls.set(failedStep, screenshotUrl);
+  return failedStep;
+}
+function failedLogText(logsList) {
+  const parsed = parseJsonField(logsList);
+  const entries = Array.isArray(parsed) ? parsed : Array.isArray(asRecord(parsed)["logs"]) ? asRecord(parsed)["logs"] : [];
+  const failed = entries.map(asRecord).filter((entry) => stringField(entry, "status") === "failed");
+  const last = failed[failed.length - 1];
+  if (!last) return void 0;
+  return meaningful(stringField(last, "text")) ?? meaningful(stringField(last, "value"));
+}
+function meaningful(value) {
+  return value && value !== "None" ? value : void 0;
+}
+function parseJsonField(value) {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return void 0;
+  }
+}
+function firstString(value) {
+  return Array.isArray(value) && typeof value[0] === "string" && value[0] !== "" ? value[0] : void 0;
+}
+function httpUrl(value) {
+  return value && /^https?:\/\//i.test(value) ? value : void 0;
+}
+function elapsedMs(start, end) {
+  if (!start || !end) return void 0;
+  const elapsed = Date.parse(end) - Date.parse(start);
+  return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : void 0;
 }
 function asRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : {};
@@ -19890,6 +20020,15 @@ function asRecord(value) {
 function stringField(record, name) {
   const value = record[name];
   return typeof value === "string" && value !== "" ? value : void 0;
+}
+function timestampField(record, name) {
+  const millis = numberField(record, name);
+  return millis === void 0 ? stringField(record, name) : new Date(millis).toISOString();
+}
+function integerField(record, name) {
+  const value = record[name];
+  const parsed = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+  return typeof parsed === "number" && Number.isInteger(parsed) ? parsed : void 0;
 }
 function numberField(record, name) {
   const value = record[name];
@@ -19907,41 +20046,67 @@ function exitCodeFor(summary2, failOn) {
 }
 
 // packages/core/src/junit.ts
+import { dirname, join } from "node:path";
 var MS_PER_SECOND = 1e3;
 var DEFAULT_SUITE = "ContextQA";
 var FAILED_RESULTS = /* @__PURE__ */ new Set(["FAILURE"]);
 var ERRORED_RESULTS = /* @__PURE__ */ new Set(["ABORTED"]);
 var PASSED_RESULT = "SUCCESS";
+var SCREENSHOT_DIR_NAME = "contextqa-screenshots";
+function screenshotDirFor(junitPath) {
+  return join(dirname(junitPath), SCREENSHOT_DIR_NAME);
+}
 function toJUnitXml(summary2, planId) {
   const cases = summary2.testCases ?? [syntheticCase(summary2, planId)];
   const suites = groupBySuite(cases);
+  const wallClockMs = summary2.results?.wallClockMs;
+  const reportUrl = summary2.reportUrl;
   const totals = tally(cases);
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    `<testsuites name="ContextQA test plan ${xmlAttr(planId)}" tests="${cases.length}" failures="${totals.failures}" errors="${totals.errors}" skipped="${totals.skipped}" time="${seconds(totals.durationMs)}">`
+    `<testsuites name="ContextQA test plan ${xmlAttr(planId)}" tests="${cases.length}" failures="${totals.failures}" errors="${totals.errors}" skipped="${totals.skipped}" time="${seconds(wallClockMs ?? totals.durationMs)}">`
   ];
+  const onlySuite = suites.size === 1;
   for (const [suite, suiteCases] of suites) {
     const t = tally(suiteCases);
+    const suiteMs = onlySuite ? wallClockMs ?? t.durationMs : t.durationMs;
     lines.push(
-      `  <testsuite name="${xmlAttr(suite)}" tests="${suiteCases.length}" failures="${t.failures}" errors="${t.errors}" skipped="${t.skipped}" time="${seconds(t.durationMs)}">`
+      `  <testsuite name="${xmlAttr(suite)}" tests="${suiteCases.length}" failures="${t.failures}" errors="${t.errors}" skipped="${t.skipped}" time="${seconds(suiteMs)}">`
     );
-    for (const testCase of suiteCases) lines.push(...renderCase(suite, testCase));
+    if (reportUrl) {
+      lines.push("    <properties>", `      <property name="contextqa.report" value="${xmlAttr(reportUrl)}"/>`, "    </properties>");
+    }
+    for (const testCase of suiteCases) lines.push(...renderCase(suite, testCase, reportUrl));
     lines.push("  </testsuite>");
   }
   lines.push("</testsuites>", "");
   return lines.join("\n");
 }
-function renderCase(suite, testCase) {
+function renderCase(suite, testCase, reportUrl) {
   const open2 = `    <testcase name="${xmlAttr(testCase.name)}" classname="${xmlAttr(suite)}" time="${seconds(testCase.durationMs)}"`;
   if (testCase.result === PASSED_RESULT) return [`${open2}/>`];
-  const message = testCase.message || testCase.result || "no result";
-  const detail = [testCase.message, testCase.traceViewerUrl ? `Trace: ${testCase.traceViewerUrl}` : ""].filter(Boolean).join("\n");
+  const step = testCase.failedStep;
+  const message = testCase.message || step?.message || testCase.result || "no result";
+  const detail = [
+    testCase.message,
+    step?.step ? `Failed step${step.stepIndex ? ` ${step.stepIndex}` : ""}: ${step.step}` : "",
+    step?.message && step.message !== testCase.message ? `Error: ${step.message}` : "",
+    step?.expected && step.expected !== step.step ? `Expected: ${step.expected}` : "",
+    step?.type ? `Type: ${step.type}` : "",
+    step?.exception ? `Exception: ${step.exception}` : "",
+    testCase.traceViewerUrl ? `Trace: ${testCase.traceViewerUrl}` : "",
+    step && reportUrl ? `Report: ${reportUrl}` : ""
+  ].filter(Boolean).join("\n");
   const tag = FAILED_RESULTS.has(testCase.result) ? "failure" : ERRORED_RESULTS.has(testCase.result) ? "error" : "skipped";
-  return [
+  const lines = [
     `${open2}>`,
-    `      <${tag} message="${xmlAttr(message)}" type="${xmlAttr(testCase.result)}">${xmlText(detail)}</${tag}>`,
-    "    </testcase>"
+    `      <${tag} message="${xmlAttr(message)}" type="${xmlAttr(testCase.result)}">${xmlText(detail)}</${tag}>`
   ];
+  if (testCase.screenshotPath) {
+    lines.push(`      <system-out>${xmlText(`[[ATTACHMENT|${testCase.screenshotPath}]]`)}</system-out>`);
+  }
+  lines.push("    </testcase>");
+  return lines;
 }
 function syntheticCase(summary2, planId) {
   const results = summary2.results;
@@ -19953,7 +20118,7 @@ function syntheticCase(summary2, planId) {
     suite: DEFAULT_SUITE,
     // Without detail, any non-pass must surface as a failure, or the test tab hides it.
     result: summary2.passed ? PASSED_RESULT : "FAILURE",
-    durationMs: results?.duration ?? 0,
+    durationMs: results?.wallClockMs ?? results?.duration ?? 0,
     message,
     traceViewerUrl: summary2.reportUrl
   };
@@ -19993,8 +20158,8 @@ function xmlAttr(value) {
 
 // packages/core/src/run.ts
 import { openAsBlob } from "node:fs";
-import { stat as stat2 } from "node:fs/promises";
-import { basename } from "node:path";
+import { mkdir as mkdir2, stat as stat2, writeFile as writeFile2 } from "node:fs/promises";
+import { basename, isAbsolute, join as join2, relative } from "node:path";
 
 // packages/core/src/types.ts
 var RUN_STATUS_COMPLETED = "STATUS_COMPLETED";
@@ -20004,6 +20169,9 @@ var MS_PER_SECOND2 = 1e3;
 var BYTES_PER_MB = 1024 * 1024;
 var PASSING_RESULT = "SUCCESS";
 var PLAN_ID_PATTERN = /^\d+$/;
+var NOT_PASSING = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
+var MAX_FAILURE_DETAILS = 50;
+var MAX_STEP_READ_FAILURES = 3;
 async function runTestPlan(options, reporter, deps = {}) {
   validate(options);
   const sleep = deps.sleep ?? defaultSleep;
@@ -20024,6 +20192,7 @@ async function runTestPlan(options, reporter, deps = {}) {
   const results = await waitForCompletion(client, reporter, trigger.id, trigger.url, options, sleep, now);
   const reportUrl = results.reportFileUrl ?? trigger.url;
   const testCases = await collectTestCases(client, reporter, trigger.id, options.token);
+  if (testCases) await addFailureDetails(client, reporter, testCases, options.screenshotDir);
   return {
     runId: trigger.id,
     reportUrl: reportUrl ?? void 0,
@@ -20122,12 +20291,73 @@ async function collectTestCases(client, reporter, runId, token) {
     throw error2;
   }
 }
+async function addFailureDetails(client, reporter, testCases, screenshotDir) {
+  const failing = testCases.filter((t) => NOT_PASSING.has(t.result)).slice(0, MAX_FAILURE_DETAILS);
+  let canReadSteps = true;
+  let readFailures = 0;
+  for (const testCase of failing) {
+    const needsStepRow = !testCase.failedStep || screenshotDir !== void 0 && !screenshotUrlOf(testCase);
+    let stepRow;
+    if (needsStepRow && canReadSteps) {
+      try {
+        stepRow = await client.failedStep(testCase.id);
+        readFailures = 0;
+      } catch (error2) {
+        if (error2 instanceof AuthError) {
+          canReadSteps = false;
+          const message = "the token lacks the TEST_STEP_RESULTS_READ permission.";
+          if (testCase.failedStep) reporter.info(`Failed-step screenshots skipped: ${message}`);
+          else reporter.warn(`Step results skipped: ${message}`);
+        } else {
+          readFailures += 1;
+          if (readFailures === 1) reporter.warn(`Step results unavailable: ${errorText(error2)}`);
+          if (readFailures >= MAX_STEP_READ_FAILURES) canReadSteps = false;
+        }
+      }
+    }
+    testCase.failedStep ??= stepRow;
+    if (screenshotDir) {
+      testCase.screenshotPath = await saveScreenshot(client, reporter, screenshotDir, testCase, stepRow);
+      if (testCase.screenshotPath && testCase.failedStep) testCase.failedStep.hasScreenshot = true;
+    }
+  }
+}
+async function saveScreenshot(client, reporter, dir, testCase, stepRow) {
+  const signedUrl = screenshotUrlOf(testCase) ?? screenshotUrlOf(stepRow);
+  const stepResultId = stepRow?.hasScreenshot ? stepRow.stepResultId : void 0;
+  if (!signedUrl && stepResultId === void 0) return void 0;
+  try {
+    const image = signedUrl ? await client.downloadImage(signedUrl) : await client.stepScreenshot(stepResultId);
+    if (!image) return void 0;
+    const path = join2(dir, `${testCase.id}${imageExtension(image)}`);
+    await mkdir2(dir, { recursive: true });
+    await writeFile2(path, image);
+    return attachmentPath(path);
+  } catch (error2) {
+    reporter.warn(`Screenshot for test case result ${testCase.id} not saved: ${errorText(error2)}`);
+    return void 0;
+  }
+}
+function attachmentPath(path) {
+  if (!isAbsolute(path)) return path;
+  const fromCwd = relative(process.cwd(), path);
+  return fromCwd && !fromCwd.startsWith("..") && !isAbsolute(fromCwd) ? fromCwd : path;
+}
+function imageExtension(image) {
+  const isPng = image[0] === 137 && image[1] === 80 && image[2] === 78 && image[3] === 71;
+  if (isPng) return ".png";
+  const isJpeg = image[0] === 255 && image[1] === 216;
+  return isJpeg ? ".jpg" : ".img";
+}
+function errorText(error2) {
+  return error2 instanceof Error ? error2.message : String(error2);
+}
 
 // packages/core/src/summary.ts
 var MS_PER_SECOND3 = 1e3;
 var SECONDS_PER_MINUTE = 60;
 var MAX_LISTED_TESTS = 50;
-var NOT_PASSING = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
+var NOT_PASSING2 = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
 function renderSummary(summary2, planId) {
   const lines = [`### ContextQA \xB7 test plan ${planId}`, ""];
   const r = summary2.results;
@@ -20139,12 +20369,12 @@ function renderSummary(summary2, planId) {
   lines.push(
     `${summary2.passed ? "\u2705" : "\u274C"} **${r.result}** \xB7 run ${summary2.runId}`,
     "",
-    "| Total | Passed | Failed | Aborted | Stopped | Not run | Duration |",
-    "|---:|---:|---:|---:|---:|---:|---:|",
-    `| ${r.totalCount} | ${r.passedCount} | ${r.failedCount} | ${r.abortedCount} | ${r.stoppedCount} | ${r.notExecutedCount} | ${duration(r.duration ?? 0)} |`
+    "| Total | Passed | Failed | Aborted | Stopped | Not run | Duration | Test execution time |",
+    "|---:|---:|---:|---:|---:|---:|---:|---:|",
+    `| ${r.totalCount} | ${r.passedCount} | ${r.failedCount} | ${r.abortedCount} | ${r.stoppedCount} | ${r.notExecutedCount} | ${duration(r.wallClockMs ?? r.duration ?? 0)} | ${executionTime(r.duration)} |`
   );
   if (summary2.reportUrl) lines.push("", `[Open the full report in ContextQA](${summary2.reportUrl})`);
-  const failing = (summary2.testCases ?? []).filter((t) => NOT_PASSING.has(t.result));
+  const failing = (summary2.testCases ?? []).filter((t) => NOT_PASSING2.has(t.result));
   if (failing.length > 0) {
     lines.push("", "#### Failing test cases", "", "| Test case | Suite | Result | Message |", "|---|---|---|---|");
     for (const t of failing.slice(0, MAX_LISTED_TESTS)) lines.push(row(t));
@@ -20155,17 +20385,25 @@ function renderSummary(summary2, planId) {
   return lines.join("\n") + "\n";
 }
 function failingTests(summary2) {
-  return (summary2.testCases ?? []).filter((t) => NOT_PASSING.has(t.result));
+  return (summary2.testCases ?? []).filter((t) => NOT_PASSING2.has(t.result));
+}
+function failureText(t) {
+  return t.message || t.failedStep?.message || t.result;
 }
 function row(t) {
   const name = t.traceViewerUrl ? `[${cell(t.name)}](${t.traceViewerUrl})` : cell(t.name);
-  return `| ${name} | ${cell(t.suite)} | ${t.result} | ${cell(t.message)} |`;
+  const step = t.failedStep;
+  const message = [t.message || step?.message || "", step?.step ? `(failed step: ${step.step})` : ""].filter(Boolean).join(" ");
+  return `| ${name} | ${cell(t.suite)} | ${t.result} | ${cell(message)} |`;
 }
 function cell(text) {
   return text.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
+function executionTime(ms) {
+  return typeof ms === "number" ? duration(ms) : "\u2014";
+}
 function duration(ms) {
-  const total = Math.round(ms / MS_PER_SECOND3);
+  const total = Math.floor(ms / MS_PER_SECOND3);
   const minutes = Math.floor(total / SECONDS_PER_MINUTE);
   return minutes > 0 ? `${minutes}m ${total % SECONDS_PER_MINUTE}s` : `${total}s`;
 }
@@ -20180,6 +20418,7 @@ function readInputs(getInput2) {
   if (!FAIL_ON_VALUES.includes(failOn)) {
     throw new ConfigError(`fail-on must be one of ${FAIL_ON_VALUES.join(", ")}`);
   }
+  const junitPath = value("junit-path");
   return {
     run: {
       apiUrl: value("api-url") ?? DEFAULT_API_URL,
@@ -20190,10 +20429,11 @@ function readInputs(getInput2) {
       iosBuild: toBuildSource(value("ios-build")),
       wait: (value("wait") ?? "true").toLowerCase() !== "false",
       timeoutSeconds: seconds2(value("timeout"), DEFAULT_TIMEOUT_SECONDS, "timeout"),
-      pollIntervalSeconds: seconds2(value("poll-interval"), DEFAULT_POLL_INTERVAL_SECONDS, "poll-interval")
+      pollIntervalSeconds: seconds2(value("poll-interval"), DEFAULT_POLL_INTERVAL_SECONDS, "poll-interval"),
+      screenshotDir: junitPath ? screenshotDirFor(junitPath) : void 0
     },
     failOn,
-    junitPath: value("junit-path")
+    junitPath
   };
 }
 function seconds2(raw, fallback, name) {
@@ -20214,11 +20454,11 @@ async function runAction(io, deps = {}) {
     await io.writeSummary(renderSummary(summary2, config.run.planId));
     if (!config.run.wait) return;
     if (config.junitPath) {
-      await mkdir2(dirname(config.junitPath), { recursive: true });
-      await writeFile2(config.junitPath, toJUnitXml(summary2, config.run.planId), "utf8");
+      await mkdir3(dirname2(config.junitPath), { recursive: true });
+      await writeFile3(config.junitPath, toJUnitXml(summary2, config.run.planId), "utf8");
     }
     for (const t of failingTests(summary2).slice(0, MAX_ANNOTATIONS)) {
-      io.error(t.message || t.result, { title: `ContextQA: ${t.suite} \u203A ${t.name}` });
+      io.error(failureText(t), { title: `ContextQA: ${t.suite} \u203A ${t.name}` });
     }
     if (exitCodeFor(summary2, config.failOn) !== ExitCode2.PASSED) {
       io.setFailed(`Test plan ${config.run.planId} result was ${summary2.results?.result ?? "unknown"}`);
