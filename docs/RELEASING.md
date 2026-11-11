@@ -16,7 +16,7 @@ git tag v1.2.3 && git push origin v1.2.3
 
 | Channel | What it publishes | Needs |
 |---|---|---|
-| npm | `@contextqa/ci-core`, `@contextqa/cli` with provenance | secret `NPM_TOKEN` (automation token for the `@contextqa` org) |
+| npm | `@contextqa-inc/ci-core`, `contextqa` with provenance | secret `NPM_TOKEN` (granular token with read-write on the `contextqa-inc` org) |
 | GHCR | `ghcr.io/indivatools/contextqa-cli:{1.2.3,1.2,1,latest}`, amd64 + arm64 | nothing (uses `GITHUB_TOKEN`) |
 | GitLab CI/CD Catalog | mirrors `providers/gitlab/` to a gitlab.com project and tags `1.2.3`; that project's pipeline creates the release | secret `GITLAB_TOKEN` (project access token, `write_repository`), variable `GITLAB_PROJECT` |
 | CircleCI | orb `<namespace>/run-test-plan@1.2.3` | secret `CIRCLECI_TOKEN`, variable `CIRCLECI_ORB` |

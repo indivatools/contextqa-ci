@@ -49,6 +49,7 @@ jobs:
 
   npm:
     needs: verify
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -73,11 +74,12 @@ jobs:
           npm ci
           node scripts/set-version.mjs "$VERSION"
           npm run build
-          npm publish -w @contextqa/ci-core --access public --provenance
-          npm publish -w @contextqa/cli --access public --provenance
+          npm publish -w @contextqa-inc/ci-core --access public --provenance
+          npm publish -w contextqa --access public --provenance
 
   image:
     needs: verify
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -111,6 +113,7 @@ jobs:
 
   gitlab:
     needs: [verify, image]
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -141,6 +144,7 @@ jobs:
 
   circleci:
     needs: [verify, npm]
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -161,6 +165,7 @@ jobs:
 
   azure:
     needs: verify
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -189,6 +194,7 @@ jobs:
 
   github-release:
     needs: [verify, npm, image]
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

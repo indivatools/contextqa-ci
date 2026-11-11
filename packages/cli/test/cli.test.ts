@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FakeServer, fakeTime, json, results, text } from '../../core/test/fake-server.js';
-import { toBuildSource } from '@contextqa/ci-core';
+import { toBuildSource } from '@contextqa-inc/ci-core';
 import { DEFAULT_API_URL, parseCommand } from '../src/args.js';
 import { main, type Io } from '../src/main.js';
 

@@ -14,6 +14,6 @@ await build({
   platform: 'node',
   target: 'node20',
   format: 'cjs',
-  alias: { '@contextqa/ci-core': `${root}packages/core/src/index.ts` },
+  alias: { '@contextqa-inc/ci-core': `${root}packages/core/src/index.ts` },
   logLevel: 'warning',
 });

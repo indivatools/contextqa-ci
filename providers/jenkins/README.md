@@ -27,7 +27,7 @@ pipeline {
    `https://github.com/indivatools/contextqa-ci.git`, **Library Path** `providers/jenkins/`.
 2. **Add the token** as a *Secret text* credential (ID `contextqa-token` above). Use an API token with
    `TEST_PLAN_EXECUTE` (which also covers build uploads) and `TEST_PLAN_RESULTS_READ`, plus `TEST_CASE_RESULTS_READ` for per-test results and failure details (optionally `TEST_STEP_RESULTS_READ` for older runs' failure details).
-3. **The agent needs Node or Docker.** The step runs `npx @contextqa/cli@1`, or the
+3. **The agent needs Node or Docker.** The step runs `npx contextqa@1`, or the
    `ghcr.io/indivatools/contextqa-cli:1` image when there is no Node. Force one with `runner: 'npx'` or
    `runner: 'docker'`.
 
@@ -49,7 +49,7 @@ the workspace path must exist on the Docker host, since the step mounts `$PWD` a
 
 ```groovy
 withCredentials([string(credentialsId: 'contextqa-token', variable: 'CONTEXTQA_TOKEN')]) {
-  sh 'npx --yes @contextqa/cli@1 run-plan --plan-id 827 --junit contextqa-junit.xml'
+  sh 'npx --yes contextqa@1 run-plan --plan-id 827 --junit contextqa-junit.xml'
 }
 junit 'contextqa-junit.xml'
 ```

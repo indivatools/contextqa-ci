@@ -5,7 +5,7 @@
 | Path | What it is |
 |---|---|
 | `packages/core` | API client and run logic: upload, trigger, poll, gate, JUnit, summary |
-| `packages/cli` | The `contextqa` command (`@contextqa/cli`) |
+| `packages/cli` | The `contextqa` command (`contextqa`) |
 | `packages/github-action` | GitHub Action glue, bundled to `dist/index.js` |
 | `packages/azure-devops-task` | Azure Pipelines task, bundled into `providers/azure-devops` at release |
 | `docker/` | The `ghcr.io/indivatools/contextqa-cli` image |

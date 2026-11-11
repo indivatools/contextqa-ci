@@ -14,6 +14,6 @@ await build({
   target: 'node20',
   format: 'esm',
   define: { __CLI_VERSION__: JSON.stringify(version) },
-  alias: { '@contextqa/ci-core': `${root}packages/core/src/index.ts` },
+  alias: { '@contextqa-inc/ci-core': `${root}packages/core/src/index.ts` },
   logLevel: 'warning',
 });

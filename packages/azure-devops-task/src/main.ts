@@ -17,7 +17,7 @@ import {
   type RunDeps,
   type RunOptions,
   type RunSummary,
-} from '@contextqa/ci-core';
+} from '@contextqa-inc/ci-core';
 
 const DEFAULT_API_URL = 'https://server.contextqa.com';
 const DEFAULT_TIMEOUT_SECONDS = 3600;

@@ -4,6 +4,17 @@ Changes to the ContextQA CI integrations: the GitHub Action, the `contextqa` CLI
 the GitLab, CircleCI, Azure DevOps, Bitbucket and Jenkins wrappers. `@v1`, `:1` and `@1` always point to
 the latest 1.x release, so these updates reach existing pipelines without any change on your side.
 
+## 1.1.1 — 2026-11-11
+
+### Added
+
+- **The CLI is on npm** as [`contextqa`](https://www.npmjs.com/package/contextqa). Run it anywhere Node 20.6+
+  is available, with no install step: `npx contextqa@1 run-plan --plan-id <id>`.
+- The Jenkins step now works on agents that have Node: it starts the CLI from npm. Before this, those
+  agents needed `runner: 'docker'`.
+
+Nothing changes for the GitHub Action, the container image or the Bitbucket pipe.
+
 ## 1.1.0 — 2026-11-11
 
 Clearer CI reports: the right run time, the test names you see in ContextQA, and what failed, without

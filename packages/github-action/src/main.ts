@@ -12,7 +12,7 @@ import {
   toJUnitXml,
   type RunDeps,
   type RunSummary,
-} from '@contextqa/ci-core';
+} from '@contextqa-inc/ci-core';
 import { readInputs } from './inputs.js';
 
 /** GitHub caps error annotations per step at 10; more are dropped silently. */

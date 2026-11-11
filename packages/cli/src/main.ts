@@ -11,7 +11,7 @@ import {
   type Reporter,
   type RunDeps,
   type RunSummary,
-} from '@contextqa/ci-core';
+} from '@contextqa-inc/ci-core';
 import { HELP, parseCommand, type CliConfig } from './args.js';
 
 export interface Io {

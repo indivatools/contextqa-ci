@@ -26,6 +26,6 @@ The `contextqa/run-plan` command works inside your own jobs too, on any executor
 
 ## How it runs
 
-The `run` job uses `cimg/node` and starts the CLI with `npx @contextqa/cli@1`. The test step records the
+The `run` job uses `cimg/node` and starts the CLI with `npx contextqa@1`. The test step records the
 CLI's exit code instead of failing, so `store_test_results` always runs; a final step then fails the job
 with that code.

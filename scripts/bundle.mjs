@@ -14,7 +14,7 @@ await build({
   format: 'esm',
   // Bundled CommonJS dependencies still call require() for Node built-ins.
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
-  alias: { '@contextqa/ci-core': `${root}packages/core/src/index.ts` },
+  alias: { '@contextqa-inc/ci-core': `${root}packages/core/src/index.ts` },
   legalComments: 'linked',
   logLevel: 'warning',
 });

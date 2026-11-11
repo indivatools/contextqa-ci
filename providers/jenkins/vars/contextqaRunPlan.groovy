@@ -63,7 +63,7 @@ private int runCli(String planId) {
     return sh(returnStatus: true, label: "ContextQA test plan ${planId}", script: '''
         set -u
         run_npx() {
-            npx --yes "@contextqa/cli@${CONTEXTQA_CLI_VERSION}" run-plan
+            npx --yes "contextqa@${CONTEXTQA_CLI_VERSION}" run-plan
         }
         run_docker() {
             # Runs as the agent's user so the JUnit file stays removable by workspace cleanup.
