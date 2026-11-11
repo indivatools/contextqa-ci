@@ -19720,6 +19720,8 @@ var TEST_CASE_PAGE_SIZE = 100;
 var MAX_TEST_CASE_PAGES = 100;
 var STEP_RESULT_PAGE_SIZE = 1e3;
 var FAILED_STEP_RESULTS = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
+var MS_PER_SECOND = 1e3;
+var EPOCH_SECONDS_BELOW = 1e11;
 var MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
 var SCREENSHOT_TOO_LARGE = "screenshot download: larger than 10 MB";
 var HTTP_UNAUTHORIZED = 401;
@@ -20022,8 +20024,11 @@ function stringField(record, name) {
   return typeof value === "string" && value !== "" ? value : void 0;
 }
 function timestampField(record, name) {
-  const millis = numberField(record, name);
-  return millis === void 0 ? stringField(record, name) : new Date(millis).toISOString();
+  const value = numberField(record, name);
+  if (value === void 0) return stringField(record, name);
+  const millis = value < EPOCH_SECONDS_BELOW ? value * MS_PER_SECOND : value;
+  const date = new Date(millis);
+  return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
 }
 function integerField(record, name) {
   const value = record[name];
@@ -20047,7 +20052,7 @@ function exitCodeFor(summary2, failOn) {
 
 // packages/core/src/junit.ts
 import { dirname, join } from "node:path";
-var MS_PER_SECOND = 1e3;
+var MS_PER_SECOND2 = 1e3;
 var DEFAULT_SUITE = "ContextQA";
 var FAILED_RESULTS = /* @__PURE__ */ new Set(["FAILURE"]);
 var ERRORED_RESULTS = /* @__PURE__ */ new Set(["ABORTED"]);
@@ -20146,7 +20151,7 @@ function tally(cases) {
   return { failures, errors, skipped, durationMs };
 }
 function seconds(ms) {
-  return (ms / MS_PER_SECOND).toFixed(3);
+  return (ms / MS_PER_SECOND2).toFixed(3);
 }
 var INVALID_XML_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
 function xmlText(value) {
@@ -20165,7 +20170,7 @@ import { basename, isAbsolute, join as join2, relative } from "node:path";
 var RUN_STATUS_COMPLETED = "STATUS_COMPLETED";
 
 // packages/core/src/run.ts
-var MS_PER_SECOND2 = 1e3;
+var MS_PER_SECOND3 = 1e3;
 var BYTES_PER_MB = 1024 * 1024;
 var PASSING_RESULT = "SUCCESS";
 var PLAN_ID_PATTERN = /^\d+$/;
@@ -20243,13 +20248,13 @@ async function fileSize(path, label) {
   }
 }
 async function waitForCompletion(client, reporter, runId, triggerUrl, options, sleep, now) {
-  const deadline = now() + options.timeoutSeconds * MS_PER_SECOND2;
+  const deadline = now() + options.timeoutSeconds * MS_PER_SECOND3;
   let lastProgress = "";
   for (; ; ) {
     if (now() >= deadline) {
       throw new RunTimeoutError(runId, options.timeoutSeconds, triggerUrl);
     }
-    await sleep(options.pollIntervalSeconds * MS_PER_SECOND2);
+    await sleep(options.pollIntervalSeconds * MS_PER_SECOND3);
     let results;
     try {
       results = await client.results(runId);
@@ -20354,7 +20359,7 @@ function errorText(error2) {
 }
 
 // packages/core/src/summary.ts
-var MS_PER_SECOND3 = 1e3;
+var MS_PER_SECOND4 = 1e3;
 var SECONDS_PER_MINUTE = 60;
 var MAX_LISTED_TESTS = 50;
 var NOT_PASSING2 = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
@@ -20403,7 +20408,7 @@ function executionTime(ms) {
   return typeof ms === "number" ? duration(ms) : "\u2014";
 }
 function duration(ms) {
-  const total = Math.floor(ms / MS_PER_SECOND3);
+  const total = Math.floor(ms / MS_PER_SECOND4);
   const minutes = Math.floor(total / SECONDS_PER_MINUTE);
   return minutes > 0 ? `${minutes}m ${total % SECONDS_PER_MINUTE}s` : `${total}s`;
 }

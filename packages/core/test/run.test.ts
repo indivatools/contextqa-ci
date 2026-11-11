@@ -323,6 +323,24 @@ describe('runTestPlan reports for CI (CON-6433)', () => {
     expect(summary.results?.wallClockMs).toBeUndefined();
   });
 
+  it('reads start and end sent as epoch seconds', async () => {
+    const fake = server([], { startTime: 1_768_039_200, endTime: 1_768_040_550 });
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.results?.wallClockMs).toBe(1_350_000);
+  });
+
+  it('ignores a timestamp no date can hold instead of failing the run', async () => {
+    const fake = server([], { startTime: 1_768_039_200_000_000_000, endTime: 1_768_040_550_000_000_000 });
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: fake.fetch, ...fakeTime() });
+
+    expect(summary.passed).toBe(true);
+    expect(summary.results?.startTime).toBeUndefined();
+    expect(summary.results?.wallClockMs).toBeUndefined();
+  });
+
   it("names each test after the test case's current name, falling back to the saved one", async () => {
     const fake = server([
       testCaseRow(1, 'SUCCESS', { testCaseDetails: { name: 'Placeholder name' }, testCase: { name: 'TC-12 Checkout with saved card' } }),
