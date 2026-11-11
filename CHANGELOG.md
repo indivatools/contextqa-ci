@@ -17,9 +17,11 @@ opening ContextQA.
   column keeps that sum, as ContextQA's *Actual TC Execution Time* does.
 - **Test names match ContextQA.** Each test is reported under its current name, as in the ContextQA run
   report, instead of the name saved when the run started.
-- **Failures say what went wrong.** For each failed test, the JUnit report and the job summary show the
-  step that failed, its error, the expected result and the failure type, with a link to the full ContextQA
-  report. GitHub and Azure DevOps annotations show the error too, instead of only `FAILURE`.
+- **Failures say what went wrong.** For a failed test, the JUnit report shows the step that failed, its
+  error, the expected result and the failure type, with a link to the full ContextQA report. The job summary
+  shows the failed step and its error, and GitHub and Azure DevOps annotations show the error instead of
+  only `FAILURE`. A run with more than 50 failed tests gets these details for the first 50; the ContextQA
+  report has the rest.
 
 ### Added
 
