@@ -5,7 +5,7 @@ export default defineConfig({
   resolve: {
     // Tests run against source, so they never depend on a stale build.
     alias: {
-      '@contextqa/ci-core': fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url)),
+      '@contextqa-inc/ci-core': fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url)),
     },
   },
   test: {

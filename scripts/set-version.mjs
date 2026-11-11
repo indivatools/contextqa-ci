@@ -26,7 +26,7 @@ function update(path, change) {
 for (const pkg of ['core', 'cli', 'github-action', 'azure-devops-task']) {
   update(`packages/${pkg}/package.json`, (json) => {
     json.version = version;
-    if (json.dependencies?.['@contextqa/ci-core']) json.dependencies['@contextqa/ci-core'] = version;
+    if (json.dependencies?.['@contextqa-inc/ci-core']) json.dependencies['@contextqa-inc/ci-core'] = version;
   });
 }
 update('providers/azure-devops/vss-extension.json', (json) => {

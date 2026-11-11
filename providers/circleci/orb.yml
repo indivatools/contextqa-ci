@@ -58,7 +58,7 @@ commands:
       cli-version:
         type: string
         default: '1'
-        description: Version range of @contextqa/cli to run when it is not already installed.
+        description: Version range of contextqa to run when it is not already installed.
     steps:
       - run:
           name: Run ContextQA test plan << parameters.plan-id >>
@@ -81,7 +81,7 @@ commands:
             if command -v contextqa >/dev/null 2>&1; then
               contextqa run-plan
             else
-              npx --yes "@contextqa/cli@<< parameters.cli-version >>" run-plan
+              npx --yes "contextqa@<< parameters.cli-version >>" run-plan
             fi
             echo $? > /tmp/contextqa-exit-code
       - store_test_results:

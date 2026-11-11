@@ -5,7 +5,7 @@
     "composite": false,
     "declaration": false,
     "paths": {
-      "@contextqa/ci-core": ["./packages/core/src/index.ts"]
+      "@contextqa-inc/ci-core": ["./packages/core/src/index.ts"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts", "vitest.config.ts"]

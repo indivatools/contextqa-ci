@@ -55,7 +55,7 @@ void check(String name, boolean ok, Object detail = '') {
 
 def r = run(libFile, work, bin, [planId: '827', androidBuild: 'app/app.apk', credentialsId: 'contextqa-token'], [FAKE_EXIT: '0', FAKE_JUNIT: '1'])
 check('passes on exit 0', r.failure == null, r.failure)
-check('runs the CLI through npx at major 1', r.log.contains('args=--yes @contextqa/cli@1 run-plan'), r.log)
+check('runs the CLI through npx at major 1', r.log.contains('args=--yes contextqa@1 run-plan'), r.log)
 check('passes options as environment', r.log.contains('CONTEXTQA_PLAN_ID=827') && r.log.contains('CONTEXTQA_ANDROID_BUILD=app/app.apk'), r.log)
 check('binds the token credential', r.calls.credentials == ['contextqa-token'], r.calls)
 check('publishes JUnit when the file exists', r.calls.junit == ['contextqa-junit.xml'], r.calls)
@@ -72,7 +72,7 @@ r = run(libFile, work, bin, [planId: '827'], [FAKE_EXIT: '3'])
 check('reports an infra failure on exit 3', r.failure?.contains('server, network or timeout failure (exit 3)'), r.failure)
 
 r = run(libFile, work, bin, [planId: '827', cliVersion: '1.2.0', timeout: 600], [FAKE_EXIT: '0'])
-check('honours cliVersion and timeout', r.log.contains('@contextqa/cli@1.2.0') && r.log.contains('CONTEXTQA_TIMEOUT=600'), r.log)
+check('honours cliVersion and timeout', r.log.contains('contextqa@1.2.0') && r.log.contains('CONTEXTQA_TIMEOUT=600'), r.log)
 
 r = run(libFile, work, bin, [:], [:])
 check('requires planId', r.failure == 'contextqaRunPlan: planId is required', r.failure)

@@ -73,8 +73,8 @@ jobs:
           npm ci
           node scripts/set-version.mjs "$VERSION"
           npm run build
-          npm publish -w @contextqa/ci-core --access public --provenance
-          npm publish -w @contextqa/cli --access public --provenance
+          npm publish -w @contextqa-inc/ci-core --access public --provenance
+          npm publish -w contextqa --access public --provenance
 
   image:
     needs: verify

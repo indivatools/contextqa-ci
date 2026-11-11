@@ -1,4 +1,4 @@
-import { ConfigError, FAIL_ON_VALUES, screenshotDirFor, toBuildSource, type FailOn, type RunOptions } from '@contextqa/ci-core';
+import { ConfigError, FAIL_ON_VALUES, screenshotDirFor, toBuildSource, type FailOn, type RunOptions } from '@contextqa-inc/ci-core';
 
 export const DEFAULT_API_URL = 'https://server.contextqa.com';
 const DEFAULT_TIMEOUT_SECONDS = 3600;

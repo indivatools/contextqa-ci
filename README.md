@@ -134,7 +134,7 @@ Anything that can run Node.js 20+ or a container works:
 
 ```sh
 # Node.js
-CONTEXTQA_TOKEN=… npx @contextqa/cli@1 run-plan --plan-id 827 --junit reports/contextqa.xml
+CONTEXTQA_TOKEN=… npx contextqa@1 run-plan --plan-id 827 --junit reports/contextqa.xml
 
 # Container
 docker run --rm -e CONTEXTQA_TOKEN -v "$PWD:/work" -w /work \
