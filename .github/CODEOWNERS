@@ -1,5 +1,7 @@
 # This public repo cannot run the org's workflow-guard check, so code-owner
-# review is what gates changes to CI configuration here.
+# review is what gates changes here: CI configuration, and the code customers run
+# (dist/ for the Action, packages/ for the CLI and image).
 
+*                     @rohithzr @barotdeep
 .github/              @rohithzr @barotdeep
 action.yml            @rohithzr @barotdeep
