@@ -132,7 +132,7 @@ cases follow, each linked to its result. A run that passed is just the one line.
 
 ❌ **FAILURE** · run 4512 · 2 of 5 passed · 2 failed · 1 aborted · 22m 14s · Web - Chrome, Android - Pixel 9 · [Open in ContextQA](https://your-company.contextqa.com/td/runs/4512)
 
-**Failing:** [Login with SSO](https://your-company.contextqa.com/td/test_case_results/2) · [Checkout with saved card](https://your-company.contextqa.com/td/test_case_results/3) · [Export orders to CSV](https://your-company.contextqa.com/td/test_case_results/5)
+**Failing:** [Login with SSO](https://your-company.contextqa.com/run-result-view?testCaseId=102&runResultId=2) · [Checkout with saved card](https://your-company.contextqa.com/run-result-view?testCaseId=103&runResultId=3) · [Export orders to CSV](https://your-company.contextqa.com/run-result-view?testCaseId=105&runResultId=5)
 ```
 
 The log ends with the verdict and the report link, as it did before 1.2.0:
@@ -166,9 +166,9 @@ link to its trace when there is one.
 
 | Test case | Suite | Device | Result | Message |
 |---|---|---|---|---|
-| [Login with SSO](https://your-company.contextqa.com/td/test_case_results/2) | Auth | Web - Chrome | FAILURE | Page load timed out after 30s |
-| [Checkout with saved card](https://your-company.contextqa.com/td/test_case_results/3) | Payments | Android - Pixel 9 | FAILURE | Element not found: button 'Pay now' (failed step: Click 'Pay now') · [Trace](…) |
-| [Export orders to CSV](https://your-company.contextqa.com/td/test_case_results/5) | Reports | Android - Pixel 9 | ABORTED | Device session ended |
+| [Login with SSO](https://your-company.contextqa.com/run-result-view?testCaseId=102&runResultId=2) | Auth | Web - Chrome | FAILURE | Page load timed out after 30s |
+| [Checkout with saved card](https://your-company.contextqa.com/run-result-view?testCaseId=103&runResultId=3) | Payments | Android - Pixel 9 | FAILURE | Element not found: button 'Pay now' (failed step: Click 'Pay now') · [Trace](…) |
+| [Export orders to CSV](https://your-company.contextqa.com/run-result-view?testCaseId=105&runResultId=5) | Reports | Android - Pixel 9 | ABORTED | Device session ended |
 ```
 
 The log adds how each device did, and each failing test case (up to 50) with its device, its error and a
@@ -180,13 +180,13 @@ Devices: Web - Chrome: 2 of 3 passed · Android - Pixel 9: 0 of 2 passed
 Failing test cases:
   FAILURE Auth › Login with SSO (Web - Chrome)
     Page load timed out after 30s
-    Result: https://your-company.contextqa.com/td/test_case_results/2
+    Result: https://your-company.contextqa.com/run-result-view?testCaseId=102&runResultId=2
   FAILURE Payments › Checkout with saved card (Android - Pixel 9)
     Element not found: button 'Pay now' (failed step: Click 'Pay now')
-    Result: https://your-company.contextqa.com/td/test_case_results/3
+    Result: https://your-company.contextqa.com/run-result-view?testCaseId=103&runResultId=3
   ABORTED Reports › Export orders to CSV (Android - Pixel 9)
     Device session ended
-    Result: https://your-company.contextqa.com/td/test_case_results/5
+    Result: https://your-company.contextqa.com/run-result-view?testCaseId=105&runResultId=5
 Report: https://your-company.contextqa.com/td/runs/4512
 ```
 
@@ -210,11 +210,11 @@ cases that did not fail into a list you can expand. The top, down to the report 
 
 #### Failing test cases
 
-**❌ [Login with SSO](https://your-company.contextqa.com/td/test_case_results/2)** · Auth · Web - Chrome · FAILURE · 31s
+**❌ [Login with SSO](https://your-company.contextqa.com/run-result-view?testCaseId=102&runResultId=2)** · Auth · Web - Chrome · FAILURE · 31s
 
 - Page load timed out after 30s
 
-**❌ [Checkout with saved card](https://your-company.contextqa.com/td/test_case_results/3)** · Payments · Android - Pixel 9 · FAILURE · 1m 42s
+**❌ [Checkout with saved card](https://your-company.contextqa.com/run-result-view?testCaseId=103&runResultId=3)** · Payments · Android - Pixel 9 · FAILURE · 1m 42s
 
 - **Failed step 7:** Click 'Pay now'
 - **Error:** Element not found: button 'Pay now'
@@ -228,8 +228,8 @@ cases that did not fail into a list you can expand. The top, down to the report 
 
 | Test case | Suite | Device | Result | Time |
 |---|---|---|---|---:|
-| [Login with password](https://your-company.contextqa.com/td/test_case_results/1) | Auth | Web - Chrome | SUCCESS | 48s |
-| [Apply discount code](https://your-company.contextqa.com/td/test_case_results/4) | Payments | Web - Chrome | SUCCESS | 58s |
+| [Login with password](https://your-company.contextqa.com/run-result-view?testCaseId=101&runResultId=1) | Auth | Web - Chrome | SUCCESS | 48s |
+| [Apply discount code](https://your-company.contextqa.com/run-result-view?testCaseId=104&runResultId=4) | Payments | Web - Chrome | SUCCESS | 58s |
 
 </details>
 ```
@@ -248,17 +248,17 @@ Suites:
 Failing test cases:
   FAILURE Auth › Login with SSO (Web - Chrome, 31s)
     Page load timed out after 30s
-    Result: https://your-company.contextqa.com/td/test_case_results/2
+    Result: https://your-company.contextqa.com/run-result-view?testCaseId=102&runResultId=2
   FAILURE Payments › Checkout with saved card (Android - Pixel 9, 1m 42s)
     Failed step 7: Click 'Pay now'
     Error: Element not found: button 'Pay now'
     Expected: Order confirmation page is shown
     Type: ELEMENT_NOT_FOUND
-    Result: https://your-company.contextqa.com/td/test_case_results/3
+    Result: https://your-company.contextqa.com/run-result-view?testCaseId=103&runResultId=3
     Trace: …
   ABORTED Reports › Export orders to CSV (Android - Pixel 9, 5s)
     Device session ended
-    Result: https://your-company.contextqa.com/td/test_case_results/5
+    Result: https://your-company.contextqa.com/run-result-view?testCaseId=105&runResultId=5
 Report: https://your-company.contextqa.com/td/runs/4512
 ```
 
@@ -276,8 +276,8 @@ As `detailed`, but instead of folding the other test cases away, the job summary
 
 | Test case | Device | Result | Time | Message |
 |---|---|---|---:|---|
-| [Login with password](https://your-company.contextqa.com/td/test_case_results/1) | Web - Chrome | SUCCESS | 48s |  |
-| [Login with SSO](https://your-company.contextqa.com/td/test_case_results/2) | Web - Chrome | FAILURE | 31s | Page load timed out after 30s |
+| [Login with password](https://your-company.contextqa.com/run-result-view?testCaseId=101&runResultId=1) | Web - Chrome | SUCCESS | 48s |  |
+| [Login with SSO](https://your-company.contextqa.com/run-result-view?testCaseId=102&runResultId=2) | Web - Chrome | FAILURE | 31s | Page load timed out after 30s |
 
 ##### Payments · 1 of 2 passed
 
@@ -293,13 +293,13 @@ Duration: 22m 14s · Test execution time: 59m 3s
 Devices: Web - Chrome: 2 of 3 passed · Android - Pixel 9: 0 of 2 passed
 All test cases:
   Auth: 1 of 2 passed
-    SUCCESS Login with password (Web - Chrome, 48s) https://your-company.contextqa.com/td/test_case_results/1
-    FAILURE Login with SSO (Web - Chrome, 31s) https://your-company.contextqa.com/td/test_case_results/2
+    SUCCESS Login with password (Web - Chrome, 48s) https://your-company.contextqa.com/run-result-view?testCaseId=101&runResultId=1
+    FAILURE Login with SSO (Web - Chrome, 31s) https://your-company.contextqa.com/run-result-view?testCaseId=102&runResultId=2
   Payments: 1 of 2 passed
-    FAILURE Checkout with saved card (Android - Pixel 9, 1m 42s) https://your-company.contextqa.com/td/test_case_results/3
-    SUCCESS Apply discount code (Web - Chrome, 58s) https://your-company.contextqa.com/td/test_case_results/4
+    FAILURE Checkout with saved card (Android - Pixel 9, 1m 42s) https://your-company.contextqa.com/run-result-view?testCaseId=103&runResultId=3
+    SUCCESS Apply discount code (Web - Chrome, 58s) https://your-company.contextqa.com/run-result-view?testCaseId=104&runResultId=4
   Reports: 0 of 1 passed
-    ABORTED Export orders to CSV (Android - Pixel 9, 5s) https://your-company.contextqa.com/td/test_case_results/5
+    ABORTED Export orders to CSV (Android - Pixel 9, 5s) https://your-company.contextqa.com/run-result-view?testCaseId=105&runResultId=5
 Failing test cases:
   …
 Report: https://your-company.contextqa.com/td/runs/4512
@@ -318,9 +318,9 @@ Each test case links to its result in ContextQA: that test case, in that run.
 
 - The link opens ContextQA in your browser, so you need to be signed in to ContextQA, as for the report
   link.
-- There is nothing to set up. The link is worked out from the run's own link
-  (`https://your-company.contextqa.com/td/runs/4512` gives
-  `https://your-company.contextqa.com/td/test_case_results/<id>`), so the token needs no new permission.
+- There is nothing to set up. The link opens the result page that ContextQA itself opens when you click
+  the test case in the run report, on the ContextQA that the run's own link points to, so the token needs
+  no new permission.
 - If ContextQA links the run in another form, test cases are not linked to their result. The job summary
   then links a test case's name to its trace, if it has one, and the log shows a `Trace:` line instead.
 - A trace keeps its own link: **Trace** beside the error in the `standard` job summary, the last line of

@@ -2,7 +2,7 @@ import { openAsBlob } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative } from 'node:path';
 import { isApiToken } from './auth.js';
-import { ContextQAClient, defaultSleep, screenshotUrlOf, type ClientDeps, type SleepFn } from './client.js';
+import { ContextQAClient, defaultSleep, resultPageOf, screenshotUrlOf, type ClientDeps, type SleepFn } from './client.js';
 import { AuthError, ConfigError, InfraError, RunTimeoutError } from './errors.js';
 import {
   RUN_STATUS_COMPLETED,
@@ -196,9 +196,11 @@ async function collectTestCases(
 }
 
 /**
- * Links each test case to its result page, which sits beside the run's page in the same ContextQA
- * (`<portal>/td/test_case_results/<id>`, the link ContextQA's own notifications use). A run link of any
- * other shape leaves the test cases unlinked rather than guessing.
+ * Links each test case to its result page in the same ContextQA as the run's page, the way ContextQA's
+ * own UI opens it (`<portal>/run-result-view?testCaseId=…&runResultId=…`, or `/run-history-view` for
+ * results from the older execution screen). A row that did not say which test case it is gets the
+ * `/td/test_case_results/<id>` link, which ContextQA redirects. A run link of any other shape leaves the
+ * test cases unlinked rather than guessing.
  */
 function linkResults(testCases: TestCaseOutcome[], reportUrl: string | null | undefined): void {
   if (!reportUrl) return;
@@ -210,9 +212,19 @@ function linkResults(testCases: TestCaseOutcome[], reportUrl: string | null | un
   }
   const portalPath = RUN_PAGE_PATH.exec(url.pathname)?.[1];
   if (portalPath === undefined || (url.protocol !== 'https:' && url.protocol !== 'http:')) return;
+  const portal = `${url.origin}${portalPath}`;
   for (const testCase of testCases) {
-    testCase.resultUrl = `${url.origin}${portalPath}/td/test_case_results/${testCase.id}`;
+    testCase.resultUrl = resultUrl(portal, testCase);
   }
+}
+
+function resultUrl(portal: string, testCase: TestCaseOutcome): string {
+  const page = resultPageOf(testCase);
+  if (!page) return `${portal}/td/test_case_results/${testCase.id}`;
+  const query = new URLSearchParams({ testCaseId: String(page.testCaseId), runResultId: String(testCase.id) });
+  if (page.isManualExecution !== undefined) query.set('isManualExecution', String(page.isManualExecution));
+  if (page.oldScreen) query.set('oldScreen', 'true');
+  return `${portal}/${page.oldScreen ? 'run-history-view' : 'run-result-view'}?${query}`;
 }
 
 /**

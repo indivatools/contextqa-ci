@@ -19734,6 +19734,10 @@ var screenshotUrls = /* @__PURE__ */ new WeakMap();
 function screenshotUrlOf(holder) {
   return holder ? screenshotUrls.get(holder) : void 0;
 }
+var resultPages = /* @__PURE__ */ new WeakMap();
+function resultPageOf(testCase) {
+  return resultPages.get(testCase);
+}
 var ContextQAClient = class {
   constructor(apiUrl, token, deps = {}) {
     this.token = token;
@@ -19942,6 +19946,14 @@ function toOutcome(row) {
     traceViewerUrl: stringField(row, "traceViewerUrl"),
     ...deviceOf(row)
   };
+  if (testCaseId !== void 0) {
+    const isManualExecution = row["isManualExecution"];
+    resultPages.set(outcome, {
+      testCaseId,
+      isManualExecution: typeof isManualExecution === "boolean" ? isManualExecution : void 0,
+      oldScreen: row["oldScreen"] === true
+    });
+  }
   const executedResult = asRecord(parseJsonField(row["executedResult"]));
   const failedStep = embeddedFailedStep(executedResult);
   if (failedStep) {
@@ -20498,9 +20510,18 @@ function linkResults(testCases, reportUrl) {
   }
   const portalPath = RUN_PAGE_PATH.exec(url.pathname)?.[1];
   if (portalPath === void 0 || url.protocol !== "https:" && url.protocol !== "http:") return;
+  const portal = `${url.origin}${portalPath}`;
   for (const testCase of testCases) {
-    testCase.resultUrl = `${url.origin}${portalPath}/td/test_case_results/${testCase.id}`;
+    testCase.resultUrl = resultUrl(portal, testCase);
   }
+}
+function resultUrl(portal, testCase) {
+  const page = resultPageOf(testCase);
+  if (!page) return `${portal}/td/test_case_results/${testCase.id}`;
+  const query = new URLSearchParams({ testCaseId: String(page.testCaseId), runResultId: String(testCase.id) });
+  if (page.isManualExecution !== void 0) query.set("isManualExecution", String(page.isManualExecution));
+  if (page.oldScreen) query.set("oldScreen", "true");
+  return `${portal}/${page.oldScreen ? "run-history-view" : "run-result-view"}?${query}`;
 }
 async function addFailureDetails(client, reporter, testCases, screenshotDir) {
   const failing = testCases.filter((t) => NOT_PASSING2.has(t.result)).slice(0, MAX_FAILURE_DETAILS);

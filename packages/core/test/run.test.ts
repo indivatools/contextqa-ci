@@ -105,8 +105,8 @@ describe('runTestPlan', () => {
   });
 
   it.each([
-    ['https://acme.contextqa.com/td/runs/77', 'https://acme.contextqa.com/td/test_case_results/2'],
-    ['https://contextqa.example.com/ui/td/runs/77', 'https://contextqa.example.com/ui/td/test_case_results/2'],
+    ['https://acme.contextqa.com/td/runs/77', 'https://acme.contextqa.com/run-result-view?testCaseId=1002&runResultId=2'],
+    ['https://contextqa.example.com/ui/td/runs/77', 'https://contextqa.example.com/ui/run-result-view?testCaseId=1002&runResultId=2'],
   ])('links each test case to its result in the portal that %s points to', async (reportFileUrl, resultUrl) => {
     const server = new FakeServer()
       .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
@@ -126,7 +126,23 @@ describe('runTestPlan', () => {
 
     const summary = await runTestPlan(options(), recordingReporter(), { fetch: server.fetch, ...fakeTime() });
 
-    expect(summary.testCases?.[0]?.resultUrl).toBe('https://acme.contextqa.com/td/test_case_results/2');
+    expect(summary.testCases?.[0]?.resultUrl).toBe('https://acme.contextqa.com/run-result-view?testCaseId=1002&runResultId=2');
+  });
+
+  it.each([
+    [{ isManualExecution: false }, 'https://app.example.com/run-result-view?testCaseId=1002&runResultId=2&isManualExecution=false'],
+    [{ isManualExecution: true, oldScreen: true }, 'https://app.example.com/run-history-view?testCaseId=1002&runResultId=2&isManualExecution=true&oldScreen=true'],
+    [{ testCaseId: null }, 'https://app.example.com/td/test_case_results/2'],
+  ])('opens the result the way ContextQA does for a row with %j', async (extra, resultUrl) => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77, url: 'https://acme.contextqa.com/td/runs/77' }))
+      .on('GET', '/test_plan_results/77/results', () => json(results()))
+      .on('GET', '/test_case_results', () => json({ content: [testCaseRow(2, 'SUCCESS', extra)], last: true }));
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: server.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.resultUrl).toBe(resultUrl);
+    expect(Object.keys(summary.testCases?.[0] ?? {})).not.toContain('testCaseId');
   });
 
   it.each([['https://reports.example.com/r/77'], ['javascript:x/td/runs/77'], [null]])('leaves test cases unlinked when the run link is %s', async (reportFileUrl) => {
