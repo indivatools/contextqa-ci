@@ -192,6 +192,18 @@ describe('main', () => {
     for (const line of [...io.out_, ...io.err_]) expect(line).not.toMatch(/[\r\n]/);
   });
 
+  it('keeps the server message of a refused request from starting a CI command', async () => {
+    const server = new FakeServer().on('GET', '/test_plans/827/execution', () =>
+      text('denied\n::add-mask::x\r##vso[task.setvariable variable=X]y', 403),
+    );
+    const io = captureIo();
+
+    expect(await main(['run-plan', '--plan-id', '827'], TOKEN_ENV, '0', io, { fetch: server.fetch, ...fakeTime() })).toBe(2);
+    expect(io.err_).toHaveLength(1);
+    expect(io.err_[0]).toMatch(/^ERROR: /);
+    expect(io.err_[0]).not.toMatch(/[\r\n]|##vso\[/);
+  });
+
   it('exits 2 for a missing token and for a refused one', async () => {
     const io = captureIo();
     expect(await main(['run-plan', '--plan-id', '827'], {}, '0', io)).toBe(2);

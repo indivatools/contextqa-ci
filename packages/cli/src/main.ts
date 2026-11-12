@@ -71,18 +71,20 @@ async function writeOutput(path: string, content: string): Promise<void> {
 
 function reportError(error: unknown, io: Io): ExitCodeValue {
   if (error instanceof RunTimeoutError && error.reportUrl) {
-    io.err(`ERROR: ${error.message}. It is still running: ${error.reportUrl}`);
+    io.err(logLine(`ERROR: ${error.message}. It is still running: ${error.reportUrl}`));
     return error.exitCode;
   }
   if (error instanceof ContextQAError) {
-    io.err(`ERROR: ${error.message}`);
+    io.err(logLine(`ERROR: ${error.message}`));
     return error.exitCode;
   }
   // parseArgs throws TypeErrors with ERR_PARSE_ARGS_* codes for bad flags.
   if (error instanceof TypeError && String((error as { code?: unknown }).code).startsWith('ERR_PARSE_ARGS')) {
-    io.err(`ERROR: ${error.message}`);
+    io.err(logLine(`ERROR: ${error.message}`));
     return ExitCode.CONFIG_ERROR;
   }
-  io.err(`ERROR: unexpected failure: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  // Keep the stack readable: sanitise each line rather than joining them.
+  for (const line of `ERROR: unexpected failure: ${detail}`.split(/\r\n?|\n/)) io.err(logLine(line));
   return ExitCode.INFRA_ERROR;
 }
