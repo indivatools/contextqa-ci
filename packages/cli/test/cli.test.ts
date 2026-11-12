@@ -53,6 +53,18 @@ describe('parseCommand', () => {
     expect(command.kind === 'run-plan' && command.config.run.wait).toBe(false);
   });
 
+  it('reads the view from --view or CONTEXTQA_VIEW, standard when neither is set', () => {
+    const view = (argv: string[], env: Record<string, string> = {}): string | undefined => {
+      const command = parseCommand(['run-plan', '--plan-id', '1', ...argv], env);
+      return command.kind === 'run-plan' ? command.config.view : undefined;
+    };
+
+    expect(view([])).toBe('standard');
+    expect(view(['--view', 'full'])).toBe('full');
+    expect(view([], { CONTEXTQA_VIEW: 'compact' })).toBe('compact');
+    expect(view(['--view', 'detailed'], { CONTEXTQA_VIEW: 'compact' })).toBe('detailed');
+  });
+
   it('never reads the token from a flag', () => {
     expect(() => parseCommand(['run-plan', '--plan-id', '1', '--token', 'x'], {})).toThrow();
   });
@@ -61,6 +73,7 @@ describe('parseCommand', () => {
     [['run-plan'], 'plan-id'],
     [['run-plan', '--plan-id', '1', '--fail-on', 'sometimes'], '--fail-on'],
     [['run-plan', '--plan-id', '1', '--timeout', '-5'], '--timeout'],
+    [['run-plan', '--plan-id', '1', '--view', 'tiny'], '--view must be one of compact, standard, detailed, full'],
     [['deploy'], 'unknown command'],
   ])('rejects %j', (argv, message) => {
     expect(() => parseCommand(argv, {})).toThrow(message);
@@ -116,6 +129,67 @@ describe('main', () => {
         ...fakeTime(),
       }),
     ).toBe(0);
+  });
+
+  describe('end of the log', () => {
+    const failedRun = () =>
+      new FakeServer()
+        .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+        .on('GET', '/test_plan_results/77/results', () => json(results({ result: 'FAILURE', passedCount: 1, failedCount: 1 })))
+        .on('GET', '/test_case_results', () =>
+          json({
+            content: [
+              { id: 1, result: 'SUCCESS', testCaseDetails: { name: 'Login works' }, testSuite: { name: 'Auth' } },
+              { id: 2, result: 'FAILURE', shortMessage: 'Element not found: #submit', testCaseDetails: { name: 'Pay' }, testSuite: { name: 'Checkout' } },
+            ],
+            last: true,
+          }),
+        );
+
+    it('lists each failing test case with its error and its result in ContextQA', async () => {
+      const io = captureIo();
+
+      await main(['run-plan', '--plan-id', '827'], TOKEN_ENV, '0', io, { fetch: failedRun().fetch, ...fakeTime() });
+
+      expect(io.out_.slice(-6)).toEqual([
+        'Run 77 finished: FAILURE (1 passed, 1 failed of 2)',
+        'Failing test cases:',
+        '  FAILURE Checkout › Pay',
+        '    Element not found: #submit',
+        '    Result: https://app.example.com/td/test_case_results/2',
+        'Report: https://app.example.com/td/runs/77',
+      ]);
+    });
+
+    it('keeps to the verdict and the report link in the compact view', async () => {
+      const io = captureIo();
+
+      await main(['run-plan', '--plan-id', '827', '--view', 'compact'], TOKEN_ENV, '0', io, { fetch: failedRun().fetch, ...fakeTime() });
+
+      expect(io.out_.slice(-2)).toEqual(['Run 77 finished: FAILURE (1 passed, 1 failed of 2)', 'Report: https://app.example.com/td/runs/77']);
+      expect(io.out_).not.toContain('Failing test cases:');
+    });
+
+    it('lists every test case in the full view', async () => {
+      const io = captureIo();
+
+      await main(['run-plan', '--plan-id', '827'], { ...TOKEN_ENV, CONTEXTQA_VIEW: 'full' }, '0', io, { fetch: failedRun().fetch, ...fakeTime() });
+
+      expect(io.out_).toContain('    SUCCESS Login works (0s) https://app.example.com/td/test_case_results/1');
+    });
+  });
+
+  it('keeps server text in its progress and error lines from starting a CI command', async () => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77, url: 'https://app.example.com/td/runs/77\n::add-mask::u' }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ result: 'FAILURE\r::stop-commands::s', failedCount: 1 })))
+      .on('GET', '/test_case_results', () => json({ content: [], last: true }));
+    const io = captureIo();
+
+    await main(['run-plan', '--plan-id', '827'], TOKEN_ENV, '0', io, { fetch: server.fetch, ...fakeTime() });
+
+    expect(io.err_.at(-1)).toContain('ERROR: test plan result was FAILURE');
+    for (const line of [...io.out_, ...io.err_]) expect(line).not.toMatch(/[\r\n]/);
   });
 
   it('exits 2 for a missing token and for a refused one', async () => {

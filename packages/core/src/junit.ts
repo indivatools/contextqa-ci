@@ -1,11 +1,10 @@
 import { dirname, join } from 'node:path';
+import { DEFAULT_SUITE, PASSED_RESULT, bySuite, deviceLabel, failureFacts } from './outcomes.js';
 import type { RunSummary, TestCaseOutcome } from './types.js';
 
 const MS_PER_SECOND = 1_000;
-const DEFAULT_SUITE = 'ContextQA';
 const FAILED_RESULTS = new Set(['FAILURE']);
 const ERRORED_RESULTS = new Set(['ABORTED']);
-const PASSED_RESULT = 'SUCCESS';
 const SCREENSHOT_DIR_NAME = 'contextqa-screenshots';
 
 /** Where failed-step screenshots go for a JUnit report at `junitPath`: a folder beside it. */
@@ -24,7 +23,7 @@ export function screenshotDirFor(junitPath: string): string {
  */
 export function toJUnitXml(summary: RunSummary, planId: string): string {
   const cases = summary.testCases ?? [syntheticCase(summary, planId)];
-  const suites = groupBySuite(cases);
+  const suites = bySuite(cases);
   const wallClockMs = summary.results?.wallClockMs;
   const reportUrl = summary.reportUrl;
 
@@ -57,12 +56,9 @@ function renderCase(suite: string, testCase: TestCaseOutcome, reportUrl: string 
   const step = testCase.failedStep;
   const message = testCase.message || step?.message || testCase.result || 'no result';
   const detail = [
-    testCase.message,
-    step?.step ? `Failed step${step.stepIndex ? ` ${step.stepIndex}` : ''}: ${step.step}` : '',
-    step?.message && step.message !== testCase.message ? `Error: ${step.message}` : '',
-    step?.expected && step.expected !== step.step ? `Expected: ${step.expected}` : '',
-    step?.type ? `Type: ${step.type}` : '',
-    step?.exception ? `Exception: ${step.exception}` : '',
+    ...failureFacts(testCase).map(({ label, text }) => (label ? `${label}: ${text}` : text)),
+    deviceLabel(testCase) ? `Device: ${deviceLabel(testCase)}` : '',
+    testCase.resultUrl ? `Result: ${testCase.resultUrl}` : '',
     testCase.traceViewerUrl ? `Trace: ${testCase.traceViewerUrl}` : '',
     step && reportUrl ? `Report: ${reportUrl}` : '',
   ]
@@ -98,15 +94,6 @@ function syntheticCase(summary: RunSummary, planId: string): TestCaseOutcome {
     message,
     traceViewerUrl: summary.reportUrl,
   };
-}
-
-function groupBySuite(cases: TestCaseOutcome[]): Map<string, TestCaseOutcome[]> {
-  const suites = new Map<string, TestCaseOutcome[]>();
-  for (const testCase of cases) {
-    const suite = testCase.suite || DEFAULT_SUITE;
-    suites.set(suite, [...(suites.get(suite) ?? []), testCase]);
-  }
-  return suites;
 }
 
 function tally(cases: TestCaseOutcome[]): { failures: number; errors: number; skipped: number; durationMs: number } {

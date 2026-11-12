@@ -42,6 +42,10 @@ spec:
       description: "`failure` fails the job unless the run passed; `never` only reports."
       default: failure
       options: [failure, never]
+    view:
+      description: How much the end of the job log shows, from `compact` (the verdict and report link) to `full` (every test case). The JUnit results are the same in every view.
+      default: standard
+      options: [compact, standard, detailed, full]
     image-tag:
       description: Tag of ghcr.io/indivatools/contextqa-cli to run.
       default: '1'
@@ -64,6 +68,7 @@ spec:
     CONTEXTQA_IOS_BUILD: '$[[ inputs.ios-build ]]'
     CONTEXTQA_TIMEOUT: '$[[ inputs.timeout ]]'
     CONTEXTQA_FAIL_ON: '$[[ inputs.fail-on ]]'
+    CONTEXTQA_VIEW: '$[[ inputs.view ]]'
     CONTEXTQA_JUNIT_PATH: contextqa-junit.xml
   script:
     - contextqa run-plan

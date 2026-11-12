@@ -3,12 +3,17 @@ import { dirname, join, resolve } from 'node:path';
 import {
   ConfigError,
   ContextQAError,
+  DEFAULT_VIEW,
   ExitCode,
   FAIL_ON_VALUES,
   RunTimeoutError,
+  VIEW_VALUES,
+  deviceLabel,
   exitCodeFor,
   failingTests,
   failureText,
+  logLine,
+  renderLog,
   renderSummary,
   runTestPlan,
   toBuildSource,
@@ -17,6 +22,7 @@ import {
   type RunDeps,
   type RunOptions,
   type RunSummary,
+  type View,
 } from '@contextqa-inc/ci-core';
 
 const DEFAULT_API_URL = 'https://server.contextqa.com';
@@ -44,6 +50,7 @@ export interface TaskIo {
 interface TaskConfig {
   run: RunOptions;
   failOn: FailOn;
+  view: View;
   junitPath: string;
   publish: boolean;
 }
@@ -53,7 +60,8 @@ export async function runTask(io: TaskIo, deps: RunDeps = {}): Promise<void> {
     const config = readConfig(io);
     if (config.run.token) io.setSecret(config.run.token);
 
-    const summary = await runTestPlan(config.run, { info: io.info, warn: io.warning }, deps);
+    // Progress lines carry server text (the run link, statuses) into the log; warnings are escaped logissues.
+    const summary = await runTestPlan(config.run, { info: (message) => io.info(logLine(message)), warn: io.warning }, deps);
     setOutputs(io, summary);
     await writeSummary(io, summary, config);
     if (!config.run.wait) return;
@@ -61,8 +69,10 @@ export async function runTask(io: TaskIo, deps: RunDeps = {}): Promise<void> {
     await mkdir(dirname(config.junitPath), { recursive: true });
     await writeFile(config.junitPath, toJUnitXml(summary, config.run.planId), 'utf8');
     if (config.publish) io.publishJUnit(config.junitPath, `ContextQA test plan ${config.run.planId}`);
+    for (const line of renderLog(summary, config.view)) io.info(line);
     for (const t of failingTests(summary).slice(0, MAX_ISSUES)) {
-      io.error(`ContextQA: ${t.suite} › ${t.name}: ${failureText(t)}`);
+      const device = deviceLabel(t);
+      io.error(`ContextQA: ${t.suite} › ${t.name}${device ? ` (${device})` : ''}: ${failureText(t)}`);
     }
 
     if (exitCodeFor(summary, config.failOn) !== ExitCode.PASSED) {
@@ -79,6 +89,10 @@ function readConfig(io: TaskIo): TaskConfig {
   const failOn = input('failOn') ?? 'failure';
   if (!(FAIL_ON_VALUES as readonly string[]).includes(failOn)) {
     throw new ConfigError(`failOn must be one of ${FAIL_ON_VALUES.join(', ')}`);
+  }
+  const view = input('view') ?? DEFAULT_VIEW;
+  if (!(VIEW_VALUES as readonly string[]).includes(view)) {
+    throw new ConfigError(`view must be one of ${VIEW_VALUES.join(', ')}`);
   }
   // A secret pipeline variable is only visible to a task through an input or an
   // explicit env: mapping, so accept either.
@@ -99,6 +113,7 @@ function readConfig(io: TaskIo): TaskConfig {
       pollIntervalSeconds: seconds(input('pollInterval'), DEFAULT_POLL_INTERVAL_SECONDS, 'pollInterval'),
     },
     failOn: failOn as FailOn,
+    view: view as View,
     junitPath: resolve(workDir, input('junitPath') ?? join(tempDir, 'contextqa', 'contextqa-junit.xml')),
     publish: (input('publishTestResults') ?? 'true').toLowerCase() !== 'false',
   };
@@ -132,7 +147,7 @@ function setOutputs(io: TaskIo, summary: RunSummary): void {
 async function writeSummary(io: TaskIo, summary: RunSummary, config: TaskConfig): Promise<void> {
   const path = join(dirname(config.junitPath), 'contextqa-summary.md');
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, renderSummary(summary, config.run.planId), 'utf8');
+  await writeFile(path, renderSummary(summary, config.run.planId, config.view), 'utf8');
   io.uploadSummary(path);
 }
 

@@ -8,6 +8,7 @@
   <dt>apiUrl</dt><dd>Default https://server.contextqa.com.</dd>
   <dt>timeout</dt><dd>Seconds to wait for the run. Default 3600.</dd>
   <dt>failOn</dt><dd>failure (default) or never.</dd>
+  <dt>view</dt><dd>How much the end of the log shows: compact, standard (default), detailed or full. The published test results are the same in every view. <a href="https://github.com/indivatools/contextqa-ci/blob/main/docs/report-views.md">Views</a></dd>
   <dt>junitPath</dt><dd>Default contextqa-junit.xml.</dd>
   <dt>publishJunit</dt><dd>Set false to skip the junit step.</dd>
   <dt>runner</dt><dd>auto (default: npx, else Docker), npx or docker.</dd>

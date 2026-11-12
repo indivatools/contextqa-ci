@@ -16,6 +16,7 @@ pipelines:
                 CONTEXTQA_PLAN_ID: '827'
                 CONTEXTQA_ANDROID_BUILD: build/app-release.apk   # optional
                 CONTEXTQA_JUNIT_PATH: test-results/contextqa.xml
+                CONTEXTQA_VIEW: detailed   # optional: compact, standard (default), detailed or full
 ```
 
 1. Add `CONTEXTQA_TOKEN` as a **secured** repository or deployment variable. Use an API token with
@@ -35,6 +36,13 @@ The step fails unless the run passes. Set `CONTEXTQA_FAIL_ON: never` to only rep
 | `CONTEXTQA_TIMEOUT` | | `3600` seconds |
 | `CONTEXTQA_JUNIT_PATH` | | none |
 | `CONTEXTQA_FAIL_ON` | | `failure` |
+| `CONTEXTQA_VIEW` | | `standard` (or `compact`, `detailed`, `full`) |
 
 Bitbucket's step limit is 120 minutes by default; raise `max-time` on the step if `CONTEXTQA_TIMEOUT` is
 longer.
+
+`CONTEXTQA_VIEW` sets how much the end of the step log shows: the verdict and the report link
+(`compact`), each failing test case with its error, device and a link to its result in ContextQA
+(`standard`, the default), each failure in full with a breakdown by suite (`detailed`), or every test case
+(`full`). The **Tests** tab is the same in every view.
+[Summary and log views](../../docs/report-views.md) has a sample of each.

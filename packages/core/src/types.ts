@@ -53,6 +53,12 @@ export interface TestCaseOutcome {
   durationMs: number;
   message: string;
   traceViewerUrl?: string;
+  /** This test case's result page in ContextQA, when the run's own link shows where ContextQA is. */
+  resultUrl?: string;
+  /** Where it ran, as ContextQA's run page words it: `Web`, `Android` or `iOS`… */
+  platform?: string;
+  /** …and the browser (`Chrome`, `Safari`) or, on mobile, the device (`Pixel 9`). */
+  device?: string;
   /** The step that failed, when the token may read step results. */
   failedStep?: FailedStep;
   /** The failed step's screenshot, saved next to the JUnit report. */

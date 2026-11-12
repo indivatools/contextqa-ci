@@ -47,7 +47,7 @@ Map run(File libFile, File work, File bin, Map args, Map fake) {
     return [failure: failure, log: recorded, calls: calls]
 }
 
-int failures = 0
+@groovy.transform.Field int failures = 0
 void check(String name, boolean ok, Object detail = '') {
     println "${ok ? 'ok  ' : 'FAIL'} ${name}${ok ? '' : ' -> ' + detail}"
     if (!ok) failures++
@@ -73,6 +73,10 @@ check('reports an infra failure on exit 3', r.failure?.contains('server, network
 
 r = run(libFile, work, bin, [planId: '827', cliVersion: '1.2.0', timeout: 600], [FAKE_EXIT: '0'])
 check('honours cliVersion and timeout', r.log.contains('contextqa@1.2.0') && r.log.contains('CONTEXTQA_TIMEOUT=600'), r.log)
+check('shows the standard view unless told otherwise', r.log.contains('CONTEXTQA_VIEW=standard'), r.log)
+
+r = run(libFile, work, bin, [planId: '827', view: 'detailed'], [FAKE_EXIT: '0'])
+check('passes the view', r.log.contains('CONTEXTQA_VIEW=detailed'), r.log)
 
 r = run(libFile, work, bin, [:], [:])
 check('requires planId', r.failure == 'contextqaRunPlan: planId is required', r.failure)

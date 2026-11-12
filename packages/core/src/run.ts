@@ -19,6 +19,8 @@ const MS_PER_SECOND = 1_000;
 const BYTES_PER_MB = 1024 * 1024;
 const PASSING_RESULT = 'SUCCESS';
 const PLAN_ID_PATTERN = /^\d+$/;
+/** The server links a run as `<portal>/td/runs/<id>`. */
+const RUN_PAGE_PATH = /^(.*)\/td\/runs\/\d+\/?$/;
 const NOT_PASSING = new Set(['FAILURE', 'ABORTED']);
 /** Failure details cost two calls per failed test; past this many, the report link has the rest. */
 const MAX_FAILURE_DETAILS = 50;
@@ -59,7 +61,10 @@ export async function runTestPlan(options: RunOptions, reporter: Reporter, deps:
   const results = await waitForCompletion(client, reporter, trigger.id, trigger.url, options, sleep, now);
   const reportUrl = results.reportFileUrl ?? trigger.url;
   const testCases = await collectTestCases(client, reporter, trigger.id, options.token);
-  if (testCases) await addFailureDetails(client, reporter, testCases, options.screenshotDir);
+  if (testCases) {
+    linkResults(testCases, reportUrl);
+    await addFailureDetails(client, reporter, testCases, options.screenshotDir);
+  }
   return {
     runId: trigger.id,
     reportUrl: reportUrl ?? undefined,
@@ -187,6 +192,26 @@ async function collectTestCases(
       return undefined;
     }
     throw error;
+  }
+}
+
+/**
+ * Links each test case to its result page, which sits beside the run's page in the same ContextQA
+ * (`<portal>/td/test_case_results/<id>`, the link ContextQA's own notifications use). A run link of any
+ * other shape leaves the test cases unlinked rather than guessing.
+ */
+function linkResults(testCases: TestCaseOutcome[], reportUrl: string | null | undefined): void {
+  if (!reportUrl) return;
+  let url: URL;
+  try {
+    url = new URL(reportUrl);
+  } catch {
+    return;
+  }
+  const portalPath = RUN_PAGE_PATH.exec(url.pathname)?.[1];
+  if (portalPath === undefined || (url.protocol !== 'https:' && url.protocol !== 'http:')) return;
+  for (const testCase of testCases) {
+    testCase.resultUrl = `${url.origin}${portalPath}/td/test_case_results/${testCase.id}`;
   }
 }
 

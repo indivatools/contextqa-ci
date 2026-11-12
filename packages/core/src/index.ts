@@ -13,6 +13,9 @@ export {
 } from './errors.js';
 export { exitCodeFor, FAIL_ON_VALUES, type FailOn } from './gate.js';
 export { screenshotDirFor, toJUnitXml } from './junit.js';
+export { logLine, renderLog } from './log.js';
+export { deviceLabel, failingTests, failureText } from './outcomes.js';
 export { runTestPlan, type RunDeps } from './run.js';
-export { failingTests, failureText, renderSummary } from './summary.js';
+export { renderSummary } from './summary.js';
 export * from './types.js';
+export { DEFAULT_VIEW, VIEW_VALUES, type View } from './view.js';

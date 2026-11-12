@@ -4,6 +4,66 @@ Changes to the ContextQA CI integrations: the GitHub Action, the `contextqa` CLI
 the GitLab, CircleCI, Azure DevOps, Bitbucket and Jenkins wrappers. `@v1`, `:1` and `@1` always point to
 the latest 1.x release, so these updates reach existing pipelines without any change on your side.
 
+## 1.2.0 — Unreleased
+
+Choose how much of each run your CI shows, see where each test case ran, and go from any test case
+straight to its result in ContextQA.
+
+### Added
+
+- **Views.** A new `view` option sets how much the job summary and the end of the log show: `compact`
+  (the verdict, and in the job summary the names of the failing test cases), `standard` (the default:
+  each failing test case with its error), `detailed` (also a breakdown by suite, and each failure in full)
+  or `full` (also every test case). Set `view` in the GitHub Action, the GitLab component, the CircleCI
+  orb, the Jenkins step and the Azure DevOps task, `CONTEXTQA_VIEW` in the Bitbucket pipe, or `--view` /
+  `CONTEXTQA_VIEW` for the CLI and the container image. See
+  [Summary and log views](docs/report-views.md) for a sample of each view and a snippet for every CI.
+- **A link to each test case's result.** Test cases now link to their result in ContextQA: the name in the
+  job summary, a `Result:` line under each failing test case in the log and in the JUnit report's failure
+  text (so it shows in the GitLab, Jenkins, Azure DevOps, CircleCI and Bitbucket test tabs), and
+  `resultUrl` in `--json` output. There is nothing to configure, and the token needs no new permission.
+- **Device details.** When ContextQA reports where a test case ran, your CI shows it too, worded as on the
+  ContextQA run page: the platform and the browser, or on mobile the device, such as `Web - Chrome` or
+  `Android - Pixel 9`. The job summary and the log show each device's passed count and the device of each
+  test case they list; in `compact`, the job summary names up to three devices and the log none. The
+  device is also in the JUnit report's failure text (so your CI's test tab shows it), in `--json` output,
+  and in GitHub and Azure DevOps annotations. There is nothing to configure, and the token needs no new
+  permission. Browser and OS versions are not shown.
+
+### Improved
+
+- **The log shows what failed.** In the default `standard` view, the log now ends with each failing test
+  case (up to 50), its error and a link to its result, then the report link. Until now the GitLab,
+  Jenkins, CircleCI and Bitbucket logs ended with just the counts and the report link. The Azure DevOps
+  log and the GitHub Action's step log get the same lines.
+- **Long errors and large runs stay readable.** In the job summary and the log, an error longer than 1,000
+  characters, such as a stack trace, is cut with `…` (at 300 in the `full` view's test case tables); the
+  JUnit report keeps it whole. A job summary that would pass GitHub's 1 MiB limit now stops at a line,
+  with a note that the report has every test case, instead of GitHub dropping it.
+
+### Security
+
+- Text from ContextQA, such as test names and errors, can no longer be read as CI commands in the log or
+  add HTML to the job summary.
+
+### Compatibility
+
+- No change to how existing inputs behave, to outputs or exit codes, and a run's pass or fail verdict is
+  decided exactly as before. `view` changes only the job summary and the log, never the JUnit report,
+  `--json` output, outputs, annotations or exit code.
+- `standard` keeps the job summary you have today, except that each test case's name now links to its
+  result (its trace link moves beside the error), an error longer than 1,000 characters is cut, and, when
+  ContextQA reports devices, a *Devices* line follows the counts and the failing test cases table has a
+  *Device* column.
+- `--json` output gains `resultUrl` on each test case, and each failure in the JUnit report gains a
+  `Result:` line, before `Trace:` and `Report:`.
+- Device details appear only when ContextQA reports them: `--json` output then gains `platform` and
+  `device` on each test case, each failure in the JUnit report gains a `Device:` line before `Result:`,
+  and GitHub and Azure DevOps annotations add the device after the test name, as in
+  `ContextQA: Checkout › Pay (Android - Pixel 9)`.
+- In the CLI, and so in GitLab, Jenkins, CircleCI and Bitbucket, `compact` ends the log exactly as earlier
+  releases did.
+
 ## 1.1.1 — 2026-11-11
 
 ### Added

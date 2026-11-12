@@ -104,6 +104,103 @@ describe('runTestPlan', () => {
     expect(summary.passed).toBe(false);
   });
 
+  it.each([
+    ['https://acme.contextqa.com/td/runs/77', 'https://acme.contextqa.com/td/test_case_results/2'],
+    ['https://contextqa.example.com/ui/td/runs/77', 'https://contextqa.example.com/ui/td/test_case_results/2'],
+  ])('links each test case to its result in the portal that %s points to', async (reportFileUrl, resultUrl) => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ reportFileUrl })))
+      .on('GET', '/test_case_results', () => json({ content: [testCaseRow(2, 'SUCCESS')], last: true }));
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: server.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.resultUrl).toBe(resultUrl);
+  });
+
+  it('falls back to the trigger link to find the portal', async () => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77, url: 'https://acme.contextqa.com/td/runs/77' }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ reportFileUrl: null })))
+      .on('GET', '/test_case_results', () => json({ content: [testCaseRow(2, 'SUCCESS')], last: true }));
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: server.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.resultUrl).toBe('https://acme.contextqa.com/td/test_case_results/2');
+  });
+
+  it.each([['https://reports.example.com/r/77'], ['javascript:x/td/runs/77'], [null]])('leaves test cases unlinked when the run link is %s', async (reportFileUrl) => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ reportFileUrl })))
+      .on('GET', '/test_case_results', () => json({ content: [testCaseRow(2, 'SUCCESS')], last: true }));
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: server.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.[0]?.name).toBe('Case 2');
+    expect(summary.testCases?.[0]?.resultUrl).toBeUndefined();
+  });
+
+  it('reads where each test case ran, worded as the ContextQA run page words it', async () => {
+    const device = {
+      title: 'Android smoke',
+      browser: 'chromium',
+      udid: 'R58N12345XY',
+      capabilities: '[{"name":"app_url","value":"lt://APP10160521"}]',
+      appUrl: 'https://storage.example.com/app.apk',
+    };
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ totalCount: 6 })))
+      .on('GET', '/test_case_results', () =>
+        json({
+          content: [
+            testCaseRow(1, 'SUCCESS', { platform: 'desktop', browser: 'webkit' }),
+            testCaseRow(2, 'SUCCESS', { platform: 'android', browser: 'pixel_5' }),
+            testCaseRow(3, 'SUCCESS', { platform: 'ios', browser: 'iPhone 15' }),
+            testCaseRow(4, 'SUCCESS', { platform: 'desktop', browser: null, testDeviceResult: { testDevice: device } }),
+            testCaseRow(5, 'SUCCESS', { browser: 'GOOGLECHROME' }),
+            testCaseRow(6, 'SUCCESS'),
+          ],
+          last: true,
+        }),
+      );
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: server.fetch, ...fakeTime() });
+
+    expect(summary.testCases?.map((t) => [t.platform, t.device])).toEqual([
+      ['Web', 'Safari'],
+      ['Android', 'Pixel 5'],
+      ['iOS', 'iPhone 15'],
+      ['Web', 'Chromium'],
+      ['Web', 'Chrome'],
+      [undefined, undefined],
+    ]);
+    const json_ = JSON.stringify(summary);
+    for (const secret of ['R58N12345XY', 'lt://APP10160521', 'storage.example.com', 'Android smoke']) expect(json_).not.toContain(secret);
+  });
+
+  it.each([
+    [{ platform: 'desktop', browser: 'gecko' }, 'Web', 'Firefox'],
+    [{ platform: 'desktop', browser: 'MicrosoftEdge' }, 'Web', 'Edge'],
+    [{ platform: 'desktop', browser: 'opera_gx' }, 'Web', 'Opera gx'],
+    [{ platform: 'android', browser: '  pixel_7  ' }, 'Android', 'Pixel 7'],
+    [{ platform: 'ios', browser: 'iphone_15_pro' }, 'iOS', 'iPhone 15 pro'],
+    [{ browser: 'galaxy_s7_edge' }, 'Android', 'Galaxy s7 edge'],
+    [{ browser: 'iPad Air' }, 'iOS', 'iPad Air'],
+    [{ platform: 'constructor', browser: 'chrome' }, 'Constructor', 'Chrome'],
+    [{ platform: '__proto__', browser: 'chrome' }, '__proto__', 'Chrome'],
+  ])('labels a test case that ran on %j as %s - %s', async (fields, platform, device) => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+      .on('GET', '/test_plan_results/77/results', () => json(results()))
+      .on('GET', '/test_case_results', () => json({ content: [testCaseRow(1, 'SUCCESS', fields)], last: true }));
+
+    const summary = await runTestPlan(options(), recordingReporter(), { fetch: server.fetch, ...fakeTime() });
+
+    expect([summary.testCases?.[0]?.platform, summary.testCases?.[0]?.device]).toEqual([platform, device]);
+  });
+
   it('pages through test case results', async () => {
     const server = new FakeServer()
       .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))

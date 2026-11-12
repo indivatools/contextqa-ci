@@ -5,12 +5,13 @@ import {
   ExitCode,
   RunTimeoutError,
   exitCodeFor,
+  logLine,
+  renderLog,
   runTestPlan,
   toJUnitXml,
   type ExitCodeValue,
   type Reporter,
   type RunDeps,
-  type RunSummary,
 } from '@contextqa-inc/ci-core';
 import { HELP, parseCommand, type CliConfig } from './args.js';
 
@@ -48,25 +49,19 @@ export async function main(
 }
 
 async function runPlan(config: CliConfig, io: Io, deps: RunDeps): Promise<ExitCodeValue> {
-  const reporter: Reporter = { info: io.out, warn: (message) => io.err(`WARNING: ${message}`) };
+  // Progress and warnings carry server text (run links, statuses, error bodies) into the log too.
+  const reporter: Reporter = { info: (message) => io.out(logLine(message)), warn: (message) => io.err(logLine(`WARNING: ${message}`)) };
   const summary = await runTestPlan(config.run, reporter, deps);
 
   if (config.jsonPath) await writeOutput(config.jsonPath, `${JSON.stringify(summary, null, 2)}\n`);
   if (!config.run.wait) return ExitCode.PASSED;
 
   if (config.junitPath) await writeOutput(config.junitPath, toJUnitXml(summary, config.run.planId));
-  io.out(finalLine(summary));
-  if (summary.reportUrl) io.out(`Report: ${summary.reportUrl}`);
+  for (const line of renderLog(summary, config.view)) io.out(line);
 
   const code = exitCodeFor(summary, config.failOn);
-  if (code !== ExitCode.PASSED) io.err(`ERROR: test plan result was ${summary.results?.result ?? 'unknown'}`);
+  if (code !== ExitCode.PASSED) io.err(logLine(`ERROR: test plan result was ${summary.results?.result ?? 'unknown'}`));
   return code;
-}
-
-function finalLine(summary: RunSummary): string {
-  const r = summary.results;
-  if (!r) return `Run ${summary.runId} triggered`;
-  return `Run ${summary.runId} finished: ${r.result} (${r.passedCount} passed, ${r.failedCount} failed of ${r.totalCount})`;
 }
 
 async function writeOutput(path: string, content: string): Promise<void> {

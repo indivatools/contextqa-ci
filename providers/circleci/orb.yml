@@ -51,6 +51,11 @@ commands:
         enum: [failure, never]
         default: failure
         description: "`failure` fails the job unless the run passed; `never` only reports."
+      view:
+        type: enum
+        enum: [compact, standard, detailed, full]
+        default: standard
+        description: How much the end of the job log shows, from `compact` (the verdict and report link) to `full` (every test case). The JUnit results are the same in every view.
       results-dir:
         type: string
         default: contextqa-results
@@ -73,6 +78,7 @@ commands:
             CONTEXTQA_IOS_BUILD: << parameters.ios-build >>
             CONTEXTQA_TIMEOUT: << parameters.timeout >>
             CONTEXTQA_FAIL_ON: << parameters.fail-on >>
+            CONTEXTQA_VIEW: << parameters.view >>
             CONTEXTQA_JUNIT_PATH: << parameters.results-dir >>/contextqa.xml
           # The exit code is held back until the results are stored, because a
           # failing step would skip store_test_results.
@@ -118,6 +124,10 @@ jobs:
         type: enum
         enum: [failure, never]
         default: failure
+      view:
+        type: enum
+        enum: [compact, standard, detailed, full]
+        default: standard
       cli-version:
         type: string
         default: '1'
@@ -149,6 +159,7 @@ jobs:
           ios-build: << parameters.ios-build >>
           timeout: << parameters.timeout >>
           fail-on: << parameters.fail-on >>
+          view: << parameters.view >>
           cli-version: << parameters.cli-version >>
 
 examples:

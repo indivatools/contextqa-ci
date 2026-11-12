@@ -59,6 +59,20 @@
       "options": { "failure": "Unless the run passed", "never": "Never (report only)" }
     },
     {
+      "name": "view",
+      "type": "pickList",
+      "label": "Summary and log view",
+      "defaultValue": "standard",
+      "required": false,
+      "options": {
+        "compact": "Compact (one-line verdict)",
+        "standard": "Standard (failing test cases with their errors)",
+        "detailed": "Detailed (also the suites, and each failure in full)",
+        "full": "Full (every test case)"
+      },
+      "helpMarkDown": "How much the summary on the Extensions tab and the end of the log show. The Tests tab, the output variables and the task result are the same in every view. [Views](https://github.com/indivatools/contextqa-ci/blob/main/docs/report-views.md)"
+    },
+    {
       "name": "apiUrl",
       "type": "string",
       "label": "API URL",

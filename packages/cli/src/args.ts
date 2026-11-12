@@ -1,5 +1,15 @@
 import { parseArgs } from 'node:util';
-import { ConfigError, FAIL_ON_VALUES, screenshotDirFor, toBuildSource, type FailOn, type RunOptions } from '@contextqa-inc/ci-core';
+import {
+  ConfigError,
+  DEFAULT_VIEW,
+  FAIL_ON_VALUES,
+  VIEW_VALUES,
+  screenshotDirFor,
+  toBuildSource,
+  type FailOn,
+  type RunOptions,
+  type View,
+} from '@contextqa-inc/ci-core';
 
 export const DEFAULT_API_URL = 'https://server.contextqa.com';
 const DEFAULT_TIMEOUT_SECONDS = 3600;
@@ -8,6 +18,7 @@ const DEFAULT_POLL_INTERVAL_SECONDS = 15;
 export interface CliConfig {
   run: RunOptions;
   failOn: FailOn;
+  view: View;
   junitPath?: string;
   jsonPath?: string;
 }
@@ -32,6 +43,8 @@ Options
   --poll-interval <seconds>       CONTEXTQA_POLL_INTERVAL Default ${DEFAULT_POLL_INTERVAL_SECONDS}
   --junit <path>                  CONTEXTQA_JUNIT_PATH    Write JUnit XML here
   --json <path>                   CONTEXTQA_JSON_PATH     Write a JSON summary here
+  --view <view>                   CONTEXTQA_VIEW          What the log ends with: compact, standard
+                                                          (default), detailed or full
   --fail-on <failure|never>       CONTEXTQA_FAIL_ON       Default failure
   --no-wait                       CONTEXTQA_WAIT=false    Trigger and exit without waiting
 
@@ -55,6 +68,7 @@ export function parseCommand(argv: string[], env: Env): ParsedCommand {
       'poll-interval': { type: 'string' },
       junit: { type: 'string' },
       json: { type: 'string' },
+      view: { type: 'string' },
       'fail-on': { type: 'string' },
       'no-wait': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
@@ -73,6 +87,9 @@ export function parseCommand(argv: string[], env: Env): ParsedCommand {
 
   const failOn = pick(values['fail-on'], 'CONTEXTQA_FAIL_ON') ?? 'failure';
   if (!isFailOn(failOn)) throw new ConfigError(`--fail-on must be one of ${FAIL_ON_VALUES.join(', ')}`);
+
+  const view = pick(values.view, 'CONTEXTQA_VIEW') ?? DEFAULT_VIEW;
+  if (!isView(view)) throw new ConfigError(`--view must be one of ${VIEW_VALUES.join(', ')}`);
 
   const junitPath = pick(values.junit, 'CONTEXTQA_JUNIT_PATH');
   return {
@@ -95,6 +112,7 @@ export function parseCommand(argv: string[], env: Env): ParsedCommand {
         screenshotDir: junitPath ? screenshotDirFor(junitPath) : undefined,
       },
       failOn,
+      view,
       junitPath,
       jsonPath: pick(values.json, 'CONTEXTQA_JSON_PATH'),
     },
@@ -110,6 +128,10 @@ function toSeconds(value: string | undefined, fallback: number, flag: string): n
 
 function isFailOn(value: string): value is FailOn {
   return (FAIL_ON_VALUES as readonly string[]).includes(value);
+}
+
+function isView(value: string): value is View {
+  return (VIEW_VALUES as readonly string[]).includes(value);
 }
 
 function isFalse(value: string | undefined): boolean {
