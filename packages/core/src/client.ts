@@ -40,6 +40,21 @@ export function screenshotUrlOf(holder: object | undefined): string | undefined 
   return holder ? screenshotUrls.get(holder) : undefined;
 }
 
+/** What ContextQA's own UI needs to open a test case's result: kept off the outcome, which `--json` writes. */
+export interface ResultPage {
+  testCaseId: number;
+  isManualExecution?: boolean;
+  /** Results from the older execution screen open on a different page. */
+  oldScreen: boolean;
+}
+
+const resultPages = new WeakMap<TestCaseOutcome, ResultPage>();
+
+/** How ContextQA's UI opens this test case's result, when the result row said which test case it is. */
+export function resultPageOf(testCase: TestCaseOutcome): ResultPage | undefined {
+  return resultPages.get(testCase);
+}
+
 export interface ClientDeps {
   fetch?: FetchFn;
   sleep?: SleepFn;
@@ -288,6 +303,14 @@ function toOutcome(row: Record<string, unknown>): TestCaseOutcome | undefined {
     traceViewerUrl: stringField(row, 'traceViewerUrl'),
     ...deviceOf(row),
   };
+  if (testCaseId !== undefined) {
+    const isManualExecution = row['isManualExecution'];
+    resultPages.set(outcome, {
+      testCaseId,
+      isManualExecution: typeof isManualExecution === 'boolean' ? isManualExecution : undefined,
+      oldScreen: row['oldScreen'] === true,
+    });
+  }
   const executedResult = asRecord(parseJsonField(row['executedResult']));
   const failedStep = embeddedFailedStep(executedResult);
   if (failedStep) {
