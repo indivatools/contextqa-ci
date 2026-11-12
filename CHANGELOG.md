@@ -4,7 +4,7 @@ Changes to the ContextQA CI integrations: the GitHub Action, the `contextqa` CLI
 the GitLab, CircleCI, Azure DevOps, Bitbucket and Jenkins wrappers. `@v1`, `:1` and `@1` always point to
 the latest 1.x release, so these updates reach existing pipelines without any change on your side.
 
-## 1.2.0 — Unreleased
+## 1.2.0 — 2026-11-12
 
 Choose how much of each run your CI shows, see where each test case ran, and go from any test case
 straight to its result in ContextQA.
