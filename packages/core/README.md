@@ -15,3 +15,7 @@ instead, whose options and exit codes are stable within a major version.
 
 What changed in each release is in the
 [changelog](https://github.com/indivatools/contextqa-ci/blob/main/CHANGELOG.md).
+
+## License
+
+MIT

@@ -1,6 +1,7 @@
 {
   "name": "@contextqa-inc/ci-core",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Trigger a ContextQA test plan, wait for it, and report the result",
   "keywords": [
     "contextqa",

@@ -89,3 +89,7 @@ a pass, even if no test case failed.
   policy requires immutable references.
 - Documentation: [learning.contextqa.com](https://learning.contextqa.com). For help, contact your ContextQA
   team or [open an issue](https://github.com/indivatools/contextqa-ci/issues).
+
+## License
+
+MIT

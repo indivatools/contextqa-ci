@@ -1,6 +1,7 @@
 {
   "name": "@contextqa-inc/azure-devops-task",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Azure Pipelines task for contextqa-ci; bundled into providers/azure-devops at release",
   "type": "module",
