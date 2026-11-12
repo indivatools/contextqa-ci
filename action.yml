@@ -37,6 +37,9 @@ inputs:
   fail-on:
     description: "`failure` fails the job unless the run passed; `never` only reports."
     default: failure
+  view:
+    description: "How much the job summary and the end of the log show: `compact` (the verdict; the summary also names the failing tests), `standard` (each failing test case with its error), `detailed` (also the suites, and each failure in full) or `full` (every test case). The JUnit report, outputs, annotations and exit code are the same in every view."
+    default: standard
 
 outputs:
   run-id:

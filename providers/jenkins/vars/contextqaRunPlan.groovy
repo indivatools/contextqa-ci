@@ -23,6 +23,7 @@ def call(Map args = [:]) {
         "CONTEXTQA_IOS_BUILD=${args.iosBuild ?: ''}",
         "CONTEXTQA_TIMEOUT=${args.timeout ?: 3600}",
         "CONTEXTQA_FAIL_ON=${args.failOn ?: 'failure'}",
+        "CONTEXTQA_VIEW=${args.view ?: 'standard'}",
         "CONTEXTQA_JUNIT_PATH=${junitPath}",
         "CONTEXTQA_CLI_VERSION=${args.cliVersion ?: '1'}",
         "CONTEXTQA_RUNNER=${args.runner ?: 'auto'}",
@@ -70,7 +71,7 @@ private int runCli(String planId) {
             docker run --rm --user "$(id -u):$(id -g)" \
                 -e CONTEXTQA_TOKEN -e CONTEXTQA_PLAN_ID -e CONTEXTQA_API_URL -e CONTEXTQA_ENVIRONMENT \
                 -e CONTEXTQA_ANDROID_BUILD -e CONTEXTQA_IOS_BUILD -e CONTEXTQA_TIMEOUT \
-                -e CONTEXTQA_FAIL_ON -e CONTEXTQA_JUNIT_PATH \
+                -e CONTEXTQA_FAIL_ON -e CONTEXTQA_VIEW -e CONTEXTQA_JUNIT_PATH \
                 -v "$PWD:$PWD" -w "$PWD" \
                 "ghcr.io/indivatools/contextqa-cli:${CONTEXTQA_CLI_VERSION}" run-plan
         }

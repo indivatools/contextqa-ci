@@ -1,4 +1,14 @@
-import { ConfigError, FAIL_ON_VALUES, screenshotDirFor, toBuildSource, type FailOn, type RunOptions } from '@contextqa-inc/ci-core';
+import {
+  ConfigError,
+  DEFAULT_VIEW,
+  FAIL_ON_VALUES,
+  VIEW_VALUES,
+  screenshotDirFor,
+  toBuildSource,
+  type FailOn,
+  type RunOptions,
+  type View,
+} from '@contextqa-inc/ci-core';
 
 export const DEFAULT_API_URL = 'https://server.contextqa.com';
 const DEFAULT_TIMEOUT_SECONDS = 3600;
@@ -7,6 +17,7 @@ const DEFAULT_POLL_INTERVAL_SECONDS = 15;
 export interface ActionConfig {
   run: RunOptions;
   failOn: FailOn;
+  view: View;
   junitPath?: string;
 }
 
@@ -17,6 +28,10 @@ export function readInputs(getInput: (name: string) => string): ActionConfig {
   const failOn = value('fail-on') ?? 'failure';
   if (!(FAIL_ON_VALUES as readonly string[]).includes(failOn)) {
     throw new ConfigError(`fail-on must be one of ${FAIL_ON_VALUES.join(', ')}`);
+  }
+  const view = value('view') ?? DEFAULT_VIEW;
+  if (!(VIEW_VALUES as readonly string[]).includes(view)) {
+    throw new ConfigError(`view must be one of ${VIEW_VALUES.join(', ')}`);
   }
 
   const junitPath = value('junit-path');
@@ -34,6 +49,7 @@ export function readInputs(getInput: (name: string) => string): ActionConfig {
       screenshotDir: junitPath ? screenshotDirFor(junitPath) : undefined,
     },
     failOn: failOn as FailOn,
+    view: view as View,
     junitPath,
   };
 }

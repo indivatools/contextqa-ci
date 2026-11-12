@@ -3352,10 +3352,10 @@ var require_data_url = __commonJS({
       if (!excludeFragment) {
         return url.href;
       }
-      const href = url.href;
+      const href2 = url.href;
       const hashLength = url.hash.length;
-      const serialized = hashLength === 0 ? href : href.substring(0, href.length - hashLength);
-      if (!hashLength && href.endsWith("#")) {
+      const serialized = hashLength === 0 ? href2 : href2.substring(0, href2.length - hashLength);
+      if (!hashLength && href2.endsWith("#")) {
         return serialized.slice(0, -1);
       }
       return serialized;
@@ -8787,8 +8787,8 @@ var require_proxy_agent = __commonJS({
         }
         const { proxyTunnel = true } = opts;
         const url = this.#getUrl(opts);
-        const { href, origin, port, protocol, username, password, hostname: proxyHostname } = url;
-        this[kProxy] = { uri: href, protocol };
+        const { href: href2, origin, port, protocol, username, password, hostname: proxyHostname } = url;
+        this[kProxy] = { uri: href2, protocol };
         this[kInterceptors] = opts.interceptors?.ProxyAgent && Array.isArray(opts.interceptors.ProxyAgent) ? opts.interceptors.ProxyAgent : [];
         this[kRequestTls] = opts.requestTls;
         this[kProxyTls] = opts.proxyTls;
@@ -19488,12 +19488,12 @@ var Summary = class {
    * @returns {Summary} summary instance
    */
   addTable(rows) {
-    const tableBody = rows.map((row2) => {
-      const cells = row2.map((cell2) => {
-        if (typeof cell2 === "string") {
-          return this.wrap("td", cell2);
+    const tableBody = rows.map((row) => {
+      const cells = row.map((cell) => {
+        if (typeof cell === "string") {
+          return this.wrap("td", cell);
         }
-        const { header, data, colspan, rowspan } = cell2;
+        const { header, data, colspan, rowspan } = cell;
         const tag = header ? "th" : "td";
         const attrs = Object.assign(Object.assign({}, colspan && { colspan }), rowspan && { rowspan });
         return this.wrap(tag, data, attrs);
@@ -19583,8 +19583,8 @@ var Summary = class {
    *
    * @returns {Summary} summary instance
    */
-  addLink(text, href) {
-    const element = this.wrap("a", text, { href });
+  addLink(text, href2) {
+    const element = this.wrap("a", text, { href: href2 });
     return this.addRaw(element).addEOL();
   }
 };
@@ -19814,8 +19814,8 @@ var ContextQAClient = class {
       );
       const record = asRecord(body);
       const content = Array.isArray(record["content"]) ? record["content"] : [];
-      for (const row2 of content) {
-        const outcome = toOutcome(asRecord(row2));
+      for (const row of content) {
+        const outcome = toOutcome(asRecord(row));
         if (outcome) outcomes.push(outcome);
       }
       if (record["last"] !== false || content.length === 0) return outcomes;
@@ -19834,7 +19834,7 @@ var ContextQAClient = class {
     );
     const record = asRecord(body);
     const content = Array.isArray(record["content"]) ? record["content"] : [];
-    const failed = content.map(asRecord).find((row2) => FAILED_STEP_RESULTS.has(stringField(row2, "result") ?? ""));
+    const failed = content.map(asRecord).find((row) => FAILED_STEP_RESULTS.has(stringField(row, "result") ?? ""));
     return failed ? toFailedStep(failed) : void 0;
   }
   /**
@@ -19927,27 +19927,68 @@ function wrapNetworkError(label, error2) {
   }
   return error2;
 }
-function toOutcome(row2) {
-  const id = numberField(row2, "id");
-  if (id === void 0 || row2["isPrerequisite"] === true) return void 0;
-  const testCaseId = numberField(row2, "testCaseId");
-  const name = stringField(asRecord(row2["testCase"]), "name") ?? stringField(asRecord(row2["testCaseDetails"]), "name") ?? `Test case ${testCaseId ?? id}`;
+function toOutcome(row) {
+  const id = numberField(row, "id");
+  if (id === void 0 || row["isPrerequisite"] === true) return void 0;
+  const testCaseId = numberField(row, "testCaseId");
+  const name = stringField(asRecord(row["testCase"]), "name") ?? stringField(asRecord(row["testCaseDetails"]), "name") ?? `Test case ${testCaseId ?? id}`;
   const outcome = {
     id,
     name,
-    suite: stringField(asRecord(row2["testSuite"]), "name") ?? "ContextQA",
-    result: stringField(row2, "result") ?? "",
-    durationMs: numberField(row2, "duration") ?? 0,
-    message: stringField(row2, "shortMessage") ?? stringField(row2, "message") ?? "",
-    traceViewerUrl: stringField(row2, "traceViewerUrl")
+    suite: stringField(asRecord(row["testSuite"]), "name") ?? "ContextQA",
+    result: stringField(row, "result") ?? "",
+    durationMs: numberField(row, "duration") ?? 0,
+    message: stringField(row, "shortMessage") ?? stringField(row, "message") ?? "",
+    traceViewerUrl: stringField(row, "traceViewerUrl"),
+    ...deviceOf(row)
   };
-  const executedResult = asRecord(parseJsonField(row2["executedResult"]));
+  const executedResult = asRecord(parseJsonField(row["executedResult"]));
   const failedStep = embeddedFailedStep(executedResult);
   if (failedStep) {
     outcome.failedStep = failedStep.step;
     if (failedStep.screenshotUrl) screenshotUrls.set(outcome, failedStep.screenshotUrl);
   }
   return outcome;
+}
+var PLATFORM_NAMES = /* @__PURE__ */ new Map([
+  ["desktop", "Web"],
+  ["web", "Web"],
+  ["android", "Android"],
+  ["ios", "iOS"]
+]);
+var MOBILE_KEYS = [
+  [["iphone", "ipad", "ios"], "iOS"],
+  [["pixel", "android", "galaxy", "samsung"], "Android"]
+];
+var BROWSER_NAMES = [
+  [["chromium"], "Chromium"],
+  [["chrome"], "Chrome"],
+  [["firefox", "gecko"], "Firefox"],
+  [["webkit", "safari"], "Safari"],
+  [["edge"], "Edge"]
+];
+function deviceOf(row) {
+  const raw = stringField(row, "browser") ?? stringField(asRecord(asRecord(row["testDeviceResult"])["testDevice"]), "browser");
+  const reported = stringField(row, "platform");
+  const platform2 = reported ? PLATFORM_NAMES.get(reported.toLowerCase()) ?? capitalized(reported) : raw ? guessedPlatform(raw) : void 0;
+  if (!raw) return platform2 ? { platform: platform2 } : {};
+  const device = platform2 === "Web" ? browserName(raw) ?? readable(raw) : readable(raw);
+  return platform2 ? { platform: platform2, device } : { device };
+}
+function guessedPlatform(raw) {
+  const lower = raw.toLowerCase();
+  const mobile = MOBILE_KEYS.find(([keys]) => keys.some((key) => lower.includes(key)))?.[1];
+  return mobile ?? (browserName(raw) ? "Web" : void 0);
+}
+function browserName(raw) {
+  const lower = raw.toLowerCase();
+  return BROWSER_NAMES.find(([keys]) => keys.some((key) => lower.includes(key)))?.[1];
+}
+function readable(raw) {
+  return capitalized(raw.trim().replace(/_/g, " ").replace(/^iphone/i, "iPhone").replace(/^ipad/i, "iPad"));
+}
+function capitalized(name) {
+  return /^[a-z][A-Z]/.test(name) ? name : name.charAt(0).toUpperCase() + name.slice(1);
 }
 function embeddedFailedStep(executedResult) {
   const failedSteps = Array.isArray(executedResult["failed_test_steps"]) ? executedResult["failed_test_steps"] : [];
@@ -19970,17 +20011,17 @@ function embeddedFailedStep(executedResult) {
     screenshotUrl
   };
 }
-function toFailedStep(row2) {
-  const stepResultId = numberField(row2, "id");
+function toFailedStep(row) {
+  const stepResultId = numberField(row, "id");
   if (stepResultId === void 0) return void 0;
-  const details = asRecord(row2["stepDetails"]);
-  const screenshotName = stringField(row2, "screenshotName");
-  const screenshotUrl = httpUrl(screenshotName) ?? httpUrl(stringField(asRecord(parseJsonField(row2["screenshots"])), "after")) ?? httpUrl(stringField(asRecord(parseJsonField(row2["screenshots"])), "before"));
+  const details = asRecord(row["stepDetails"]);
+  const screenshotName = stringField(row, "screenshotName");
+  const screenshotUrl = httpUrl(screenshotName) ?? httpUrl(stringField(asRecord(parseJsonField(row["screenshots"])), "after")) ?? httpUrl(stringField(asRecord(parseJsonField(row["screenshots"])), "before"));
   const failedStep = {
     stepResultId,
     step: stringField(details, "action") ?? stringField(details, "stepDescription") ?? "",
-    message: stringField(row2, "message") ?? failedLogText(row2["logsList"]) ?? "",
-    exception: stringField(row2, "webDriverException"),
+    message: stringField(row, "message") ?? failedLogText(row["logsList"]) ?? "",
+    exception: stringField(row, "webDriverException"),
     hasScreenshot: screenshotName !== void 0 || screenshotUrl !== void 0
   };
   if (screenshotUrl) screenshotUrls.set(failedStep, screenshotUrl);
@@ -20052,18 +20093,90 @@ function exitCodeFor(summary2, failOn) {
 
 // packages/core/src/junit.ts
 import { dirname, join } from "node:path";
+
+// packages/core/src/outcomes.ts
 var MS_PER_SECOND2 = 1e3;
+var SECONDS_PER_MINUTE = 60;
+var NOT_PASSING = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
+var PASSED_RESULT = "SUCCESS";
+var UNSAFE_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g;
 var DEFAULT_SUITE = "ContextQA";
+function isFailing(t) {
+  return NOT_PASSING.has(t.result);
+}
+function failingTests(summary2) {
+  return (summary2.testCases ?? []).filter(isFailing);
+}
+function failureText(t) {
+  return t.message || t.failedStep?.message || t.result;
+}
+function shortFailure(t) {
+  const step = t.failedStep;
+  return [t.message || step?.message || "", step?.step ? `(failed step: ${step.step})` : ""].filter(Boolean).join(" ");
+}
+function failureFacts(t) {
+  const step = t.failedStep;
+  const facts = [
+    t.message ? { text: t.message } : void 0,
+    step?.step ? { label: `Failed step${step.stepIndex ? ` ${step.stepIndex}` : ""}`, text: step.step } : void 0,
+    step?.message && step.message !== t.message ? { label: "Error", text: step.message } : void 0,
+    step?.expected && step.expected !== step.step ? { label: "Expected", text: step.expected } : void 0,
+    step?.type ? { label: "Type", text: step.type } : void 0,
+    step?.exception ? { label: "Exception", text: step.exception } : void 0
+  ];
+  return facts.filter((fact) => fact !== void 0);
+}
+function bySuite(testCases) {
+  const suites2 = /* @__PURE__ */ new Map();
+  for (const testCase of testCases) {
+    const suite = testCase.suite || DEFAULT_SUITE;
+    const cases = suites2.get(suite);
+    if (cases) cases.push(testCase);
+    else suites2.set(suite, [testCase]);
+  }
+  return suites2;
+}
+function deviceLabel(t) {
+  return [t.platform, t.device].filter(Boolean).join(" - ");
+}
+function byDevice(testCases) {
+  const devices2 = /* @__PURE__ */ new Map();
+  for (const testCase of testCases) {
+    const device = deviceLabel(testCase);
+    if (!device) continue;
+    const cases = devices2.get(device);
+    if (cases) cases.push(testCase);
+    else devices2.set(device, [testCase]);
+  }
+  return devices2;
+}
+function passedOf(testCases) {
+  return `${testCases.filter((t) => t.result === PASSED_RESULT).length} of ${testCases.length} passed`;
+}
+function clip(text, max) {
+  const chars = Array.from(text);
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}\u2026` : text;
+}
+function runTime(r) {
+  return r.wallClockMs ?? r.duration ?? 0;
+}
+function formatDuration(ms) {
+  const total = Math.floor(ms / MS_PER_SECOND2);
+  const minutes = Math.floor(total / SECONDS_PER_MINUTE);
+  return minutes > 0 ? `${minutes}m ${total % SECONDS_PER_MINUTE}s` : `${total}s`;
+}
+
+// packages/core/src/junit.ts
+var MS_PER_SECOND3 = 1e3;
 var FAILED_RESULTS = /* @__PURE__ */ new Set(["FAILURE"]);
 var ERRORED_RESULTS = /* @__PURE__ */ new Set(["ABORTED"]);
-var PASSED_RESULT = "SUCCESS";
 var SCREENSHOT_DIR_NAME = "contextqa-screenshots";
 function screenshotDirFor(junitPath) {
   return join(dirname(junitPath), SCREENSHOT_DIR_NAME);
 }
 function toJUnitXml(summary2, planId) {
   const cases = summary2.testCases ?? [syntheticCase(summary2, planId)];
-  const suites = groupBySuite(cases);
+  const suites2 = bySuite(cases);
   const wallClockMs = summary2.results?.wallClockMs;
   const reportUrl = summary2.reportUrl;
   const totals = tally(cases);
@@ -20071,8 +20184,8 @@ function toJUnitXml(summary2, planId) {
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<testsuites name="ContextQA test plan ${xmlAttr(planId)}" tests="${cases.length}" failures="${totals.failures}" errors="${totals.errors}" skipped="${totals.skipped}" time="${seconds(wallClockMs ?? totals.durationMs)}">`
   ];
-  const onlySuite = suites.size === 1;
-  for (const [suite, suiteCases] of suites) {
+  const onlySuite = suites2.size === 1;
+  for (const [suite, suiteCases] of suites2) {
     const t = tally(suiteCases);
     const suiteMs = onlySuite ? wallClockMs ?? t.durationMs : t.durationMs;
     lines.push(
@@ -20093,12 +20206,9 @@ function renderCase(suite, testCase, reportUrl) {
   const step = testCase.failedStep;
   const message = testCase.message || step?.message || testCase.result || "no result";
   const detail = [
-    testCase.message,
-    step?.step ? `Failed step${step.stepIndex ? ` ${step.stepIndex}` : ""}: ${step.step}` : "",
-    step?.message && step.message !== testCase.message ? `Error: ${step.message}` : "",
-    step?.expected && step.expected !== step.step ? `Expected: ${step.expected}` : "",
-    step?.type ? `Type: ${step.type}` : "",
-    step?.exception ? `Exception: ${step.exception}` : "",
+    ...failureFacts(testCase).map(({ label, text }) => label ? `${label}: ${text}` : text),
+    deviceLabel(testCase) ? `Device: ${deviceLabel(testCase)}` : "",
+    testCase.resultUrl ? `Result: ${testCase.resultUrl}` : "",
     testCase.traceViewerUrl ? `Trace: ${testCase.traceViewerUrl}` : "",
     step && reportUrl ? `Report: ${reportUrl}` : ""
   ].filter(Boolean).join("\n");
@@ -20128,30 +20238,22 @@ function syntheticCase(summary2, planId) {
     traceViewerUrl: summary2.reportUrl
   };
 }
-function groupBySuite(cases) {
-  const suites = /* @__PURE__ */ new Map();
-  for (const testCase of cases) {
-    const suite = testCase.suite || DEFAULT_SUITE;
-    suites.set(suite, [...suites.get(suite) ?? [], testCase]);
-  }
-  return suites;
-}
 function tally(cases) {
-  let failures = 0;
+  let failures2 = 0;
   let errors = 0;
   let skipped = 0;
   let durationMs = 0;
   for (const testCase of cases) {
     durationMs += testCase.durationMs;
     if (testCase.result === PASSED_RESULT) continue;
-    if (FAILED_RESULTS.has(testCase.result)) failures++;
+    if (FAILED_RESULTS.has(testCase.result)) failures2++;
     else if (ERRORED_RESULTS.has(testCase.result)) errors++;
     else skipped++;
   }
-  return { failures, errors, skipped, durationMs };
+  return { failures: failures2, errors, skipped, durationMs };
 }
 function seconds(ms) {
-  return (ms / MS_PER_SECOND2).toFixed(3);
+  return (ms / MS_PER_SECOND3).toFixed(3);
 }
 var INVALID_XML_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
 function xmlText(value) {
@@ -20159,6 +20261,92 @@ function xmlText(value) {
 }
 function xmlAttr(value) {
   return xmlText(value).replace(/"/g, "&quot;").replace(/\n/g, "&#10;");
+}
+
+// packages/core/src/view.ts
+var VIEW_VALUES = ["compact", "standard", "detailed", "full"];
+var DEFAULT_VIEW = "standard";
+function viewOrDefault(view) {
+  return VIEW_VALUES.includes(view) ? view : DEFAULT_VIEW;
+}
+
+// packages/core/src/log.ts
+var MAX_LISTED_TESTS = 50;
+var MAX_ALL_TESTS = 1e3;
+var MAX_FACT_CHARS = 1e3;
+function renderLog(summary2, view = DEFAULT_VIEW) {
+  const shown = viewOrDefault(view);
+  const r = summary2.results;
+  const lines = [];
+  if (r) {
+    lines.push(`Run ${summary2.runId} finished: ${r.result} (${r.passedCount} passed, ${r.failedCount} failed of ${r.totalCount})`);
+    const testCases = summary2.testCases ?? [];
+    if (shown === "detailed" || shown === "full") lines.push(runTimes(r));
+    if (shown !== "compact") lines.push(...devices(testCases));
+    if (shown === "detailed") lines.push(...suites(testCases));
+    if (shown === "full") lines.push(...allTests(testCases));
+    if (shown !== "compact") lines.push(...failures(testCases.filter(isFailing), shown !== "standard"));
+  } else {
+    lines.push(`Run ${summary2.runId} started without waiting for the result`);
+  }
+  if (summary2.reportUrl) lines.push(`Report: ${summary2.reportUrl}`);
+  return lines.map(logLine);
+}
+function runTimes(r) {
+  const testTime = typeof r.duration === "number" ? ` \xB7 Test execution time: ${formatDuration(r.duration)}` : "";
+  return `Duration: ${formatDuration(runTime(r))}${testTime}`;
+}
+function devices(testCases) {
+  const used = [...byDevice(testCases)];
+  return used.length > 0 ? [`Devices: ${used.map(([device, cases]) => `${device}: ${passedOf(cases)}`).join(" \xB7 ")}`] : [];
+}
+function suites(testCases) {
+  if (testCases.length === 0) return [];
+  return ["Suites:", ...[...bySuite(testCases)].map(([suite, cases]) => `  ${suite}: ${passedOf(cases)}`)];
+}
+function allTests(testCases) {
+  if (testCases.length === 0) return [];
+  const lines = ["All test cases:"];
+  let room = MAX_ALL_TESTS;
+  for (const [suite, cases] of bySuite(testCases)) {
+    if (room === 0) break;
+    lines.push(`  ${suite}: ${passedOf(cases)}`);
+    for (const t of cases.slice(0, room)) {
+      const link = t.resultUrl ?? t.traceViewerUrl;
+      lines.push(`    ${t.result} ${t.name} ${aside(t, true)}${link ? ` ${link}` : ""}`);
+    }
+    room -= Math.min(room, cases.length);
+  }
+  return [...lines, ...more(testCases.length, MAX_ALL_TESTS)];
+}
+function failures(failing, detailed) {
+  if (failing.length === 0) return [];
+  const lines = ["Failing test cases:"];
+  for (const t of failing.slice(0, MAX_LISTED_TESTS)) {
+    const where = aside(t, detailed);
+    lines.push(`  ${t.result} ${t.suite} \u203A ${t.name}${where ? ` ${where}` : ""}`);
+    if (detailed) {
+      for (const { label, text } of failureFacts(t)) lines.push(`    ${label ? `${label}: ` : ""}${clip(text, MAX_FACT_CHARS)}`);
+      if (t.resultUrl) lines.push(`    Result: ${t.resultUrl}`);
+      if (t.traceViewerUrl) lines.push(`    Trace: ${t.traceViewerUrl}`);
+    } else {
+      const failure = shortFailure(t);
+      if (failure) lines.push(`    ${clip(failure, MAX_FACT_CHARS)}`);
+      if (t.resultUrl) lines.push(`    Result: ${t.resultUrl}`);
+      else if (t.traceViewerUrl) lines.push(`    Trace: ${t.traceViewerUrl}`);
+    }
+  }
+  return [...lines, ...more(failing.length, MAX_LISTED_TESTS)];
+}
+function aside(t, withTime) {
+  const parts = [deviceLabel(t), withTime ? formatDuration(t.durationMs) : ""].filter(Boolean);
+  return parts.length > 0 ? `(${parts.join(", ")})` : "";
+}
+function more(total, listed) {
+  return total > listed ? [`  \u2026and ${total - listed} more in the report.`] : [];
+}
+function logLine(line) {
+  return line.replace(/\r\n?|\n/g, " ").replace(UNSAFE_CHARS, "").replace(/^(\s*:)(?=:)/, "$1\u200B").replace(/#(?=#(?:vso)?\[)/gi, "#\u200B");
 }
 
 // packages/core/src/run.ts
@@ -20170,11 +20358,12 @@ import { basename, isAbsolute, join as join2, relative } from "node:path";
 var RUN_STATUS_COMPLETED = "STATUS_COMPLETED";
 
 // packages/core/src/run.ts
-var MS_PER_SECOND3 = 1e3;
+var MS_PER_SECOND4 = 1e3;
 var BYTES_PER_MB = 1024 * 1024;
 var PASSING_RESULT = "SUCCESS";
 var PLAN_ID_PATTERN = /^\d+$/;
-var NOT_PASSING = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
+var RUN_PAGE_PATH = /^(.*)\/td\/runs\/\d+\/?$/;
+var NOT_PASSING2 = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
 var MAX_FAILURE_DETAILS = 50;
 var MAX_STEP_READ_FAILURES = 3;
 async function runTestPlan(options, reporter, deps = {}) {
@@ -20197,7 +20386,10 @@ async function runTestPlan(options, reporter, deps = {}) {
   const results = await waitForCompletion(client, reporter, trigger.id, trigger.url, options, sleep, now);
   const reportUrl = results.reportFileUrl ?? trigger.url;
   const testCases = await collectTestCases(client, reporter, trigger.id, options.token);
-  if (testCases) await addFailureDetails(client, reporter, testCases, options.screenshotDir);
+  if (testCases) {
+    linkResults(testCases, reportUrl);
+    await addFailureDetails(client, reporter, testCases, options.screenshotDir);
+  }
   return {
     runId: trigger.id,
     reportUrl: reportUrl ?? void 0,
@@ -20248,13 +20440,13 @@ async function fileSize(path, label) {
   }
 }
 async function waitForCompletion(client, reporter, runId, triggerUrl, options, sleep, now) {
-  const deadline = now() + options.timeoutSeconds * MS_PER_SECOND3;
+  const deadline = now() + options.timeoutSeconds * MS_PER_SECOND4;
   let lastProgress = "";
   for (; ; ) {
     if (now() >= deadline) {
       throw new RunTimeoutError(runId, options.timeoutSeconds, triggerUrl);
     }
-    await sleep(options.pollIntervalSeconds * MS_PER_SECOND3);
+    await sleep(options.pollIntervalSeconds * MS_PER_SECOND4);
     let results;
     try {
       results = await client.results(runId);
@@ -20296,8 +20488,22 @@ async function collectTestCases(client, reporter, runId, token) {
     throw error2;
   }
 }
+function linkResults(testCases, reportUrl) {
+  if (!reportUrl) return;
+  let url;
+  try {
+    url = new URL(reportUrl);
+  } catch {
+    return;
+  }
+  const portalPath = RUN_PAGE_PATH.exec(url.pathname)?.[1];
+  if (portalPath === void 0 || url.protocol !== "https:" && url.protocol !== "http:") return;
+  for (const testCase of testCases) {
+    testCase.resultUrl = `${url.origin}${portalPath}/td/test_case_results/${testCase.id}`;
+  }
+}
 async function addFailureDetails(client, reporter, testCases, screenshotDir) {
-  const failing = testCases.filter((t) => NOT_PASSING.has(t.result)).slice(0, MAX_FAILURE_DETAILS);
+  const failing = testCases.filter((t) => NOT_PASSING2.has(t.result)).slice(0, MAX_FAILURE_DETAILS);
   let canReadSteps = true;
   let readFailures = 0;
   for (const testCase of failing) {
@@ -20359,58 +20565,204 @@ function errorText(error2) {
 }
 
 // packages/core/src/summary.ts
-var MS_PER_SECOND4 = 1e3;
-var SECONDS_PER_MINUTE = 60;
-var MAX_LISTED_TESTS = 50;
-var NOT_PASSING2 = /* @__PURE__ */ new Set(["FAILURE", "ABORTED"]);
-function renderSummary(summary2, planId) {
+var MAX_LISTED_TESTS2 = 50;
+var MAX_NAMED_TESTS = 10;
+var MAX_NAMED_DEVICES = 3;
+var MAX_TABLE_ROWS = 1e3;
+var MAX_FACT_CHARS2 = 1e3;
+var MAX_CELL_CHARS = 300;
+var MAX_SUMMARY_BYTES = 1e6;
+var CUT_NOTE = "_The summary stops here to stay within the size limit for job summaries; the report has every test case._";
+var MISSING_DETAIL = "_Per-test results need an API token with the `TEST_CASE_RESULTS_READ` permission._";
+function renderSummary(summary2, planId, view = DEFAULT_VIEW) {
+  const shown = viewOrDefault(view);
   const lines = [`### ContextQA \xB7 test plan ${planId}`, ""];
   const r = summary2.results;
+  const reportUrl = href(summary2.reportUrl);
   if (!r) {
     lines.push(`Run ${summary2.runId} started without waiting for the result.`);
-    if (summary2.reportUrl) lines.push("", `[Open the run in ContextQA](${summary2.reportUrl})`);
-    return lines.join("\n") + "\n";
+    if (reportUrl) lines.push("", `[Open the run in ContextQA](${reportUrl})`);
+    return fit(lines);
   }
-  lines.push(
-    `${summary2.passed ? "\u2705" : "\u274C"} **${r.result}** \xB7 run ${summary2.runId}`,
-    "",
-    "| Total | Passed | Failed | Aborted | Stopped | Not run | Duration | Test execution time |",
-    "|---:|---:|---:|---:|---:|---:|---:|---:|",
-    `| ${r.totalCount} | ${r.passedCount} | ${r.failedCount} | ${r.abortedCount} | ${r.stoppedCount} | ${r.notExecutedCount} | ${duration(r.wallClockMs ?? r.duration ?? 0)} | ${executionTime(r.duration)} |`
-  );
-  if (summary2.reportUrl) lines.push("", `[Open the full report in ContextQA](${summary2.reportUrl})`);
-  const failing = (summary2.testCases ?? []).filter((t) => NOT_PASSING2.has(t.result));
+  const testCases = summary2.testCases;
+  const devices2 = byDevice(testCases ?? []);
+  if (shown === "compact") {
+    lines.push(verdictLine(summary2, r, reportUrl, [...devices2.keys()]));
+  } else {
+    lines.push(
+      `${summary2.passed ? "\u2705" : "\u274C"} **${md(r.result)}** \xB7 run ${summary2.runId}`,
+      "",
+      "| Total | Passed | Failed | Aborted | Stopped | Not run | Duration | Test execution time |",
+      "|---:|---:|---:|---:|---:|---:|---:|---:|",
+      `| ${r.totalCount} | ${r.passedCount} | ${r.failedCount} | ${r.abortedCount} | ${r.stoppedCount} | ${r.notExecutedCount} | ${formatDuration(runTime(r))} | ${executionTime(r.duration)} |`
+    );
+    if (devices2.size > 0) {
+      lines.push("", `**Devices:** ${[...devices2].map(([device, cases]) => `${md(device)}: ${passedOf(cases)}`).join(" \xB7 ")}`);
+    }
+    if (reportUrl) lines.push("", `[Open the full report in ContextQA](${reportUrl})`);
+  }
+  if (!testCases) {
+    if (!summary2.passed) lines.push("", MISSING_DETAIL);
+    return fit(lines);
+  }
+  const failing = testCases.filter(isFailing);
+  if (shown === "compact") {
+    if (failing.length > 0) lines.push("", `**Failing:** ${namedTests(failing)}`);
+    return fit(lines);
+  }
+  const withDevice = devices2.size > 0;
+  if (shown !== "standard" && testCases.length > 0) lines.push("", ...suiteTable(testCases));
   if (failing.length > 0) {
-    lines.push("", "#### Failing test cases", "", "| Test case | Suite | Result | Message |", "|---|---|---|---|");
-    for (const t of failing.slice(0, MAX_LISTED_TESTS)) lines.push(row(t));
-    if (failing.length > MAX_LISTED_TESTS) lines.push("", `\u2026and ${failing.length - MAX_LISTED_TESTS} more in the report.`);
-  } else if (!summary2.testCases && !summary2.passed) {
-    lines.push("", "_Per-test results need an API token with the `TEST_CASE_RESULTS_READ` permission._");
+    lines.push("", "#### Failing test cases", "", ...shown === "standard" ? failureTable(failing, withDevice) : failureBlocks(failing));
   }
-  return lines.join("\n") + "\n";
+  if (shown === "detailed") lines.push(...otherTests(testCases.filter((t) => !isFailing(t)), withDevice));
+  if (shown === "full" && testCases.length > 0) lines.push("", ...allTests2(testCases, withDevice));
+  return fit(lines);
 }
-function failingTests(summary2) {
-  return (summary2.testCases ?? []).filter((t) => NOT_PASSING2.has(t.result));
+function verdictLine(summary2, r, reportUrl, devices2) {
+  const others = [
+    [r.failedCount, "failed"],
+    [r.abortedCount, "aborted"],
+    [r.stoppedCount, "stopped"],
+    [r.notExecutedCount, "not run"]
+  ];
+  const parts = [
+    `${summary2.passed ? "\u2705" : "\u274C"} **${md(r.result)}**`,
+    `run ${summary2.runId}`,
+    `${r.passedCount} of ${r.totalCount} passed`,
+    ...others.filter(([count]) => count > 0).map(([count, what]) => `${count} ${what}`),
+    formatDuration(runTime(r))
+  ];
+  if (devices2.length > 0) {
+    const named = devices2.slice(0, MAX_NAMED_DEVICES).map(md);
+    if (devices2.length > MAX_NAMED_DEVICES) named.push(`+${devices2.length - MAX_NAMED_DEVICES} more`);
+    parts.push(named.join(", "));
+  }
+  if (reportUrl) parts.push(`[Open in ContextQA](${reportUrl})`);
+  return parts.join(" \xB7 ");
 }
-function failureText(t) {
-  return t.message || t.failedStep?.message || t.result;
+function namedTests(failing) {
+  const names = failing.slice(0, MAX_NAMED_TESTS).map(linkedName);
+  if (failing.length > MAX_NAMED_TESTS) names.push(`\u2026and ${failing.length - MAX_NAMED_TESTS} more`);
+  return names.join(" \xB7 ");
 }
-function row(t) {
-  const name = t.traceViewerUrl ? `[${cell(t.name)}](${t.traceViewerUrl})` : cell(t.name);
-  const step = t.failedStep;
-  const message = [t.message || step?.message || "", step?.step ? `(failed step: ${step.step})` : ""].filter(Boolean).join(" ");
-  return `| ${name} | ${cell(t.suite)} | ${t.result} | ${cell(message)} |`;
+function failureTable(failing, withDevice) {
+  const lines = withDevice ? ["| Test case | Suite | Device | Result | Message |", "|---|---|---|---|---|"] : ["| Test case | Suite | Result | Message |", "|---|---|---|---|"];
+  for (const t of failing.slice(0, MAX_LISTED_TESTS2)) {
+    const message = [md(clip(shortFailure(t), MAX_FACT_CHARS2)), traceLink(t)].filter(Boolean).join(" \xB7 ");
+    lines.push(`| ${linkedName(t)} | ${md(t.suite)} | ${deviceCell(t, withDevice)}${md(t.result)} | ${message} |`);
+  }
+  return [...lines, ...more2(failing.length, MAX_LISTED_TESTS2)];
 }
-function cell(text) {
-  return text.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+function suiteTable(testCases) {
+  const lines = [
+    "#### Suites",
+    "",
+    "| Suite | Tests | Passed | Failed | Aborted | Test execution time |",
+    "|---|---:|---:|---:|---:|---:|"
+  ];
+  const suites2 = [...bySuite(testCases)];
+  for (const [suite, cases] of suites2.slice(0, MAX_TABLE_ROWS)) {
+    const count = (result) => cases.filter((t) => t.result === result).length;
+    const time = cases.reduce((sum, t) => sum + t.durationMs, 0);
+    lines.push(`| ${md(suite)} | ${cases.length} | ${count(PASSED_RESULT)} | ${count("FAILURE")} | ${count("ABORTED")} | ${formatDuration(time)} |`);
+  }
+  return [...lines, ...more2(suites2.length, MAX_TABLE_ROWS)];
+}
+function failureBlocks(failing) {
+  const lines = [];
+  for (const t of failing.slice(0, MAX_LISTED_TESTS2)) {
+    if (lines.length > 0) lines.push("");
+    const where = [md(t.suite), md(deviceLabel(t))].filter(Boolean).join(" \xB7 ");
+    lines.push(`**\u274C ${linkedName(t)}** \xB7 ${where} \xB7 ${md(t.result)} \xB7 ${formatDuration(t.durationMs)}`);
+    const items = failureFacts(t).map(
+      ({ label, text }) => label ? `- **${label}:** ${md(clip(text, MAX_FACT_CHARS2))}` : `- ${blockMd(clip(text, MAX_FACT_CHARS2))}`
+    );
+    const trace = traceLink(t);
+    if (trace) items.push(`- ${trace}`);
+    if (items.length > 0) lines.push("", ...items);
+  }
+  return [...lines, ...more2(failing.length, MAX_LISTED_TESTS2)];
+}
+function otherTests(others, withDevice) {
+  if (others.length === 0) return [];
+  const rows = others.slice(0, MAX_TABLE_ROWS).map((t) => `| ${linkedName(t)} | ${md(t.suite)} | ${deviceCell(t, withDevice)}${md(t.result)} | ${formatDuration(t.durationMs)} |`);
+  return [
+    "",
+    `<details><summary>Other test cases (${others.length})</summary>`,
+    "",
+    ...withDevice ? ["| Test case | Suite | Device | Result | Time |", "|---|---|---|---|---:|"] : ["| Test case | Suite | Result | Time |", "|---|---|---|---:|"],
+    ...rows,
+    ...more2(others.length, MAX_TABLE_ROWS),
+    "",
+    "</details>"
+  ];
+}
+function allTests2(testCases, withDevice) {
+  const lines = ["#### All test cases"];
+  const header = withDevice ? ["| Test case | Device | Result | Time | Message |", "|---|---|---|---:|---|"] : ["| Test case | Result | Time | Message |", "|---|---|---:|---|"];
+  let room = MAX_TABLE_ROWS;
+  for (const [suite, cases] of bySuite(testCases)) {
+    if (room === 0) break;
+    lines.push("", `##### ${md(suite)} \xB7 ${passedOf(cases)}`, "", ...header);
+    for (const t of cases.slice(0, room)) {
+      const message = t.result === PASSED_RESULT ? "" : md(clip(shortFailure(t), MAX_CELL_CHARS));
+      lines.push(`| ${linkedName(t)} | ${deviceCell(t, withDevice)}${md(t.result)} | ${formatDuration(t.durationMs)} | ${message} |`);
+    }
+    room -= Math.min(room, cases.length);
+  }
+  return [...lines, ...more2(testCases.length, MAX_TABLE_ROWS)];
+}
+function linkedName(t) {
+  const url = href(t.resultUrl) ?? href(t.traceViewerUrl);
+  return url ? `[${md(t.name)}](${url})` : md(t.name);
+}
+function deviceCell(t, withDevice) {
+  return withDevice ? `${md(deviceLabel(t))} | ` : "";
+}
+function traceLink(t) {
+  const trace = href(t.traceViewerUrl);
+  return trace && href(t.resultUrl) ? `[Trace](${trace})` : "";
+}
+function more2(total, listed) {
+  return total > listed ? ["", `\u2026and ${total - listed} more in the report.`] : [];
+}
+function fit(lines) {
+  const text = lines.join("\n") + "\n";
+  if (Buffer.byteLength(text) <= MAX_SUMMARY_BYTES) return text;
+  const kept = [];
+  let bytes = Buffer.byteLength(CUT_NOTE) + Buffer.byteLength("\n\n</details>\n\n");
+  for (const line of lines) {
+    bytes += Buffer.byteLength(line) + 1;
+    if (bytes > MAX_SUMMARY_BYTES) break;
+    kept.push(line);
+  }
+  if (kept.findLastIndex((line) => line.startsWith("<details>")) > kept.lastIndexOf("</details>")) kept.push("", "</details>");
+  return [...kept, "", CUT_NOTE].join("\n") + "\n";
+}
+function href(url) {
+  if (!url) return void 0;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return void 0;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return void 0;
+  const rest = `${parsed.pathname}${parsed.search}${parsed.hash}`.replace(
+    /[()[\]|<>"'`\\ ]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `${parsed.origin}${rest}`.replace(/&/g, "&amp;");
+}
+function md(text) {
+  return text.replace(UNSAFE_CHARS, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/[\\`*~[\]|]/g, (c) => `\\${c}`).replace(/\r\n?|\n/g, " ");
+}
+function blockMd(text) {
+  return md(text.trimStart()).replace(/^([#+=_-])/, "\\$1").replace(/^(\d+)([.)])/, "$1\\$2");
 }
 function executionTime(ms) {
-  return typeof ms === "number" ? duration(ms) : "\u2014";
-}
-function duration(ms) {
-  const total = Math.floor(ms / MS_PER_SECOND4);
-  const minutes = Math.floor(total / SECONDS_PER_MINUTE);
-  return minutes > 0 ? `${minutes}m ${total % SECONDS_PER_MINUTE}s` : `${total}s`;
+  return typeof ms === "number" ? formatDuration(ms) : "\u2014";
 }
 
 // packages/github-action/src/inputs.ts
@@ -20422,6 +20774,10 @@ function readInputs(getInput2) {
   const failOn = value("fail-on") ?? "failure";
   if (!FAIL_ON_VALUES.includes(failOn)) {
     throw new ConfigError(`fail-on must be one of ${FAIL_ON_VALUES.join(", ")}`);
+  }
+  const view = value("view") ?? DEFAULT_VIEW;
+  if (!VIEW_VALUES.includes(view)) {
+    throw new ConfigError(`view must be one of ${VIEW_VALUES.join(", ")}`);
   }
   const junitPath = value("junit-path");
   return {
@@ -20438,6 +20794,7 @@ function readInputs(getInput2) {
       screenshotDir: junitPath ? screenshotDirFor(junitPath) : void 0
     },
     failOn,
+    view,
     junitPath
   };
 }
@@ -20454,16 +20811,18 @@ async function runAction(io, deps = {}) {
   try {
     const config = readInputs((name) => io.getInput(name));
     if (config.run.token) io.setSecret(config.run.token);
-    const summary2 = await runTestPlan(config.run, { info: io.info, warn: io.warning }, deps);
+    const summary2 = await runTestPlan(config.run, { info: (message) => io.info(logLine(message)), warn: io.warning }, deps);
     setOutputs(io, summary2);
-    await io.writeSummary(renderSummary(summary2, config.run.planId));
+    await io.writeSummary(renderSummary(summary2, config.run.planId, config.view));
     if (!config.run.wait) return;
     if (config.junitPath) {
       await mkdir3(dirname2(config.junitPath), { recursive: true });
       await writeFile3(config.junitPath, toJUnitXml(summary2, config.run.planId), "utf8");
     }
+    for (const line of renderLog(summary2, config.view)) io.info(line);
     for (const t of failingTests(summary2).slice(0, MAX_ANNOTATIONS)) {
-      io.error(failureText(t), { title: `ContextQA: ${t.suite} \u203A ${t.name}` });
+      const device = deviceLabel(t);
+      io.error(failureText(t), { title: `ContextQA: ${t.suite} \u203A ${t.name}${device ? ` (${device})` : ""}` });
     }
     if (exitCodeFor(summary2, config.failOn) !== ExitCode2.PASSED) {
       io.setFailed(`Test plan ${config.run.planId} result was ${summary2.results?.result ?? "unknown"}`);

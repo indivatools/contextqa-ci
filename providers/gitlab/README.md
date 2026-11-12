@@ -9,6 +9,7 @@ include:
     inputs:
       plan-id: "827"
       android-build: build/app-release.apk   # optional, e.g. an artifact from your build job
+      view: detailed                         # optional: compact, standard (default), detailed or full
 ```
 
 1. Add `CONTEXTQA_TOKEN` under **Settings › CI/CD › Variables**, masked (and protected if only protected
@@ -16,6 +17,13 @@ include:
 2. Include the component. It adds one job (default name `contextqa`, stage `test`).
 
 All inputs are listed in [`templates/run-test-plan.yml`](templates/run-test-plan.yml).
+
+`view` sets how much the end of the job log shows: the verdict and the report link (`compact`), each
+failing test case with its error, device and a link to its result in ContextQA (`standard`, the default),
+each failure in full with a breakdown by suite (`detailed`), or every test case (`full`). The **Tests**
+tab is the same in every view.
+[Summary and log views](https://github.com/indivatools/contextqa-ci/blob/main/docs/report-views.md) has
+a sample of each.
 
 ## Self-managed GitLab
 

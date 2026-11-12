@@ -10,11 +10,18 @@ const TOKEN = 'token_acme.secret';
 
 function fakeIo(inputs: Record<string, string>, env: Record<string, string> = {}) {
   const outputs: Record<string, string> = {};
-  const record = { errors: [] as string[], failed: [] as string[], secrets: [] as string[], junit: [] as string[], summaries: [] as string[] };
+  const record = {
+    errors: [] as string[],
+    failed: [] as string[],
+    secrets: [] as string[],
+    junit: [] as string[],
+    summaries: [] as string[],
+    logged: [] as string[],
+  };
   const io: TaskIo = {
     getInput: (name) => inputs[name] ?? '',
     getEnv: (name) => env[name],
-    info: () => undefined,
+    info: (m) => record.logged.push(m),
     warning: () => undefined,
     error: (m) => record.errors.push(m),
     setSecret: (v) => record.secrets.push(v),
@@ -95,6 +102,40 @@ describe('runTask', () => {
     expect(f.errors).toEqual(['ContextQA: Checkout › Pay: The Pay button is not on the screen']);
   });
 
+  it('names the device in the issue of a failing test case', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'cqa-azure-'));
+    const s = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ result: 'FAILURE', failedCount: 1 })))
+      .on('GET', '/test_case_results', () =>
+        json({
+          content: [
+            { id: 2, result: 'FAILURE', shortMessage: 'Element not found', platform: 'desktop', browser: 'webkit', testCase: { name: 'Pay' }, testSuite: { name: 'Checkout' } },
+          ],
+          last: true,
+        }),
+      );
+    const f = fakeIo({ planId: '827', token: TOKEN }, { AGENT_TEMPDIRECTORY: temp });
+
+    await runTask(f.io, { fetch: s.fetch, ...fakeTime() });
+
+    expect(f.errors).toEqual(['ContextQA: Checkout › Pay (Web - Safari): Element not found']);
+  });
+
+  it('keeps server text in its progress lines from starting a logging command', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'cqa-azure-'));
+    const s = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77, url: 'https://app.example.com/td/runs/77 ##vso[task.prependpath]/tmp' }))
+      .on('GET', '/test_plan_results/77/results', () => json(results()))
+      .on('GET', '/test_case_results', () => json({ content: [], last: true }));
+    const f = fakeIo({ planId: '827', token: TOKEN }, { AGENT_TEMPDIRECTORY: temp });
+
+    await runTask(f.io, { fetch: s.fetch, ...fakeTime() });
+
+    expect(f.logged.some((line) => line.startsWith('Started run 77'))).toBe(true);
+    for (const line of f.logged) expect(line).not.toContain('##vso[');
+  });
+
   it('takes the token from the environment when the input is empty', async () => {
     const temp = await mkdtemp(join(tmpdir(), 'cqa-azure-'));
     const s = server();
@@ -132,10 +173,35 @@ describe('runTask', () => {
     expect(f.junit).toEqual([]);
   });
 
-  it('fails cleanly on bad input', async () => {
-    const f = fakeIo({ planId: '827', token: TOKEN, failOn: 'sometimes' });
+  it('writes the summary in the chosen view and ends the log with the failing test cases', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'cqa-azure-'));
+    const f = fakeIo({ planId: '827', token: TOKEN, view: 'compact' }, { AGENT_TEMPDIRECTORY: temp });
+
+    await runTask(f.io, { fetch: server('FAILURE').fetch, ...fakeTime() });
+
+    const summary = await readFile(f.summaries[0]!, 'utf8');
+    expect(summary).toContain('**Failing:** [Pay](https://app.example.com/td/test_case_results/2)');
+    expect(summary).not.toContain('| Total |');
+    expect(f.logged.slice(-2)).toEqual(['Run 77 finished: FAILURE (2 passed, 1 failed of 2)', 'Report: https://app.example.com/td/runs/77']);
+  });
+
+  it('lists the failing test cases at the end of the log in the standard view', async () => {
+    const temp = await mkdtemp(join(tmpdir(), 'cqa-azure-'));
+    const f = fakeIo({ planId: '827', token: TOKEN }, { AGENT_TEMPDIRECTORY: temp });
+
+    await runTask(f.io, { fetch: server('FAILURE').fetch, ...fakeTime() });
+
+    expect(f.logged).toContain('  FAILURE Checkout › Pay');
+    expect(f.logged).toContain('    Result: https://app.example.com/td/test_case_results/2');
+  });
+
+  it.each([
+    [{ failOn: 'sometimes' }, 'failOn must be one of'],
+    [{ view: 'tiny' }, 'view must be one of compact, standard, detailed, full'],
+  ])('fails cleanly on bad input %j', async (inputs, message) => {
+    const f = fakeIo({ planId: '827', token: TOKEN, ...inputs });
     await runTask(f.io, { fetch: new FakeServer().fetch, ...fakeTime() });
-    expect(f.failed[0]).toContain('failOn must be one of');
+    expect(f.failed[0]).toContain(message);
   });
 });
 

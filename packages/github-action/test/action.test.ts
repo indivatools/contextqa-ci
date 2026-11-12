@@ -14,13 +14,14 @@ function fakeIo(inputs: Record<string, string>) {
   const failed: string[] = [];
   const secrets: string[] = [];
   const summaries: string[] = [];
+  const logged: string[] = [];
   const io: ActionIo = {
     getInput: (name) => inputs[name] ?? '',
     setOutput: (name, value) => {
       outputs[name] = value;
     },
     setSecret: (value) => secrets.push(value),
-    info: () => undefined,
+    info: (message) => logged.push(message),
     warning: () => undefined,
     error: (message, properties) => errors.push({ message, title: properties?.title }),
     setFailed: (message) => failed.push(message),
@@ -28,7 +29,7 @@ function fakeIo(inputs: Record<string, string>) {
       summaries.push(markdown);
     },
   };
-  return { io, outputs, errors, failed, secrets, summaries };
+  return { io, outputs, errors, failed, secrets, summaries, logged };
 }
 
 function failingServer(): FakeServer {
@@ -103,6 +104,75 @@ describe('runAction', () => {
     expect(f.summaries[0]).toContain('Element not found: #submit (failed step: Click on Pay)');
   });
 
+  it('writes the job summary in the chosen view', async () => {
+    const f = fakeIo({ 'plan-id': '827', token: TOKEN, view: 'compact' });
+
+    await runAction(f.io, { fetch: failingServer().fetch, ...fakeTime() });
+
+    expect(f.summaries[0]).toContain(
+      '❌ **FAILURE** · run 77 · 1 of 2 passed · 1 failed · 4s · [Open in ContextQA](https://app.example.com/td/runs/77)',
+    );
+    expect(f.summaries[0]).toContain('**Failing:** [Pay \\| saved card](https://app.example.com/td/test_case_results/2)');
+    expect(f.summaries[0]).not.toContain('| Total |');
+  });
+
+  it('links failing test cases to their result in ContextQA in the standard summary', async () => {
+    const f = fakeIo({ 'plan-id': '827', token: TOKEN });
+
+    await runAction(f.io, { fetch: failingServer().fetch, ...fakeTime() });
+
+    expect(f.summaries[0]).toContain(
+      '| [Pay \\| saved card](https://app.example.com/td/test_case_results/2) | Checkout | FAILURE | Element not found: #submit · [Trace](https://trace/2) |',
+    );
+  });
+
+  it('ends the log with the failing test cases and their links', async () => {
+    const f = fakeIo({ 'plan-id': '827', token: TOKEN });
+
+    await runAction(f.io, { fetch: failingServer().fetch, ...fakeTime() });
+
+    expect(f.logged.slice(-6)).toEqual([
+      'Run 77 finished: FAILURE (1 passed, 1 failed of 2)',
+      'Failing test cases:',
+      '  FAILURE Checkout › Pay | saved card',
+      '    Element not found: #submit',
+      '    Result: https://app.example.com/td/test_case_results/2',
+      'Report: https://app.example.com/td/runs/77',
+    ]);
+  });
+
+  it('names the device in the annotation of a failing test case', async () => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77 }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ result: 'FAILURE', passedCount: 0, failedCount: 1 })))
+      .on('GET', '/test_case_results', () =>
+        json({
+          content: [
+            { id: 2, result: 'FAILURE', shortMessage: 'Element not found', platform: 'android', browser: 'Pixel 9', testCase: { name: 'Pay' }, testSuite: { name: 'Checkout' } },
+          ],
+          last: true,
+        }),
+      );
+    const f = fakeIo({ 'plan-id': '827', token: TOKEN });
+
+    await runAction(f.io, { fetch: server.fetch, ...fakeTime() });
+
+    expect(f.errors).toEqual([{ message: 'Element not found', title: 'ContextQA: Checkout › Pay (Android - Pixel 9)' }]);
+  });
+
+  it('keeps server text in its progress lines from starting a CI command', async () => {
+    const server = new FakeServer()
+      .on('GET', '/test_plans/827/execution', () => json({ id: 77, url: 'https://app.example.com/td/runs/77\n::add-mask::u' }))
+      .on('GET', '/test_plan_results/77/results', () => json(results({ status: 'STATUS_COMPLETED' })))
+      .on('GET', '/test_case_results', () => json({ content: [], last: true }));
+    const f = fakeIo({ 'plan-id': '827', token: TOKEN });
+
+    await runAction(f.io, { fetch: server.fetch, ...fakeTime() });
+
+    expect(f.logged.some((line) => line.startsWith('Started run 77'))).toBe(true);
+    for (const line of f.logged) expect(line).not.toMatch(/[\r\n]/);
+  });
+
   it('only reports when fail-on is never', async () => {
     const f = fakeIo({ 'plan-id': '827', token: TOKEN, 'fail-on': 'never' });
 
@@ -127,6 +197,7 @@ describe('runAction', () => {
     [{ 'plan-id': '827' }, 'ContextQA token is missing'],
     [{ 'plan-id': 'abc', token: TOKEN }, 'plan id must be a number'],
     [{ 'plan-id': '827', token: TOKEN, 'fail-on': 'often' }, 'fail-on must be one of'],
+    [{ 'plan-id': '827', token: TOKEN, view: 'tiny' }, 'view must be one of compact, standard, detailed, full'],
     [{ 'plan-id': '827', token: TOKEN, timeout: '0' }, 'timeout must be a positive'],
   ])('fails cleanly on bad input %j', async (inputs, message) => {
     const f = fakeIo(inputs);

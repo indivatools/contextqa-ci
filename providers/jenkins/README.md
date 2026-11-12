@@ -13,7 +13,8 @@ pipeline {
       steps {
         contextqaRunPlan planId: '827',
                          credentialsId: 'contextqa-token',
-                         androidBuild: 'app/build/outputs/apk/release/app-release.apk'  // optional
+                         androidBuild: 'app/build/outputs/apk/release/app-release.apk',  // optional
+                         view: 'detailed'  // optional: compact, standard (default), detailed or full
       }
     }
   }
@@ -44,6 +45,12 @@ All options are listed in [`vars/contextqaRunPlan.txt`](vars/contextqaRunPlan.tx
 
 `failOn: 'never'` reports without failing. With the Docker runner and an agent that is itself a container,
 the workspace path must exist on the Docker host, since the step mounts `$PWD` at the same path.
+
+`view` sets how much the end of the console output shows: the verdict and the report link (`'compact'`),
+each failing test case with its error, device and a link to its result in ContextQA (`'standard'`, the
+default), each failure in full with a breakdown by suite (`'detailed'`), or every test case (`'full'`).
+The published test results are the same in every view.
+[Summary and log views](../../docs/report-views.md) has a sample of each.
 
 ## Without the library
 

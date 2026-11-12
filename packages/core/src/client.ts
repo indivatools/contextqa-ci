@@ -286,6 +286,7 @@ function toOutcome(row: Record<string, unknown>): TestCaseOutcome | undefined {
     durationMs: numberField(row, 'duration') ?? 0,
     message: stringField(row, 'shortMessage') ?? stringField(row, 'message') ?? '',
     traceViewerUrl: stringField(row, 'traceViewerUrl'),
+    ...deviceOf(row),
   };
   const executedResult = asRecord(parseJsonField(row['executedResult']));
   const failedStep = embeddedFailedStep(executedResult);
@@ -294,6 +295,63 @@ function toOutcome(row: Record<string, unknown>): TestCaseOutcome | undefined {
     if (failedStep.screenshotUrl) screenshotUrls.set(outcome, failedStep.screenshotUrl);
   }
   return outcome;
+}
+
+const PLATFORM_NAMES = new Map([
+  ['desktop', 'Web'],
+  ['web', 'Web'],
+  ['android', 'Android'],
+  ['ios', 'iOS'],
+]);
+/** Device names that mean a mobile platform, as the ContextQA UI reads them, checked before browsers. */
+const MOBILE_KEYS: [string[], string][] = [
+  [['iphone', 'ipad', 'ios'], 'iOS'],
+  [['pixel', 'android', 'galaxy', 'samsung'], 'Android'],
+];
+/** Browser engines as the ContextQA UI names them; matched as substrings, so `GOOGLECHROME` is Chrome. */
+const BROWSER_NAMES: [string[], string][] = [
+  [['chromium'], 'Chromium'],
+  [['chrome'], 'Chrome'],
+  [['firefox', 'gecko'], 'Firefox'],
+  [['webkit', 'safari'], 'Safari'],
+  [['edge'], 'Edge'],
+];
+
+/**
+ * Where a test case ran, worded as the ContextQA run page words it: the platform (`desktop` is Web) and
+ * the browser, or on mobile the device (`pixel_5` is Pixel 5). Only these two fields are read, never the
+ * rest of the row's device record: it also holds app ids and device UDIDs, which must stay out of CI logs.
+ * The device record's own settings are placeholders on the current engine, so they are not used either.
+ */
+function deviceOf(row: Record<string, unknown>): { platform?: string; device?: string } {
+  const raw = stringField(row, 'browser') ?? stringField(asRecord(asRecord(row['testDeviceResult'])['testDevice']), 'browser');
+  const reported = stringField(row, 'platform');
+  const platform = reported ? (PLATFORM_NAMES.get(reported.toLowerCase()) ?? capitalized(reported)) : raw ? guessedPlatform(raw) : undefined;
+  if (!raw) return platform ? { platform } : {};
+  const device = platform === 'Web' ? (browserName(raw) ?? readable(raw)) : readable(raw);
+  return platform ? { platform, device } : { device };
+}
+
+/** With no platform reported, a device name says mobile (a Galaxy S7 edge is not the Edge browser) and a browser says Web. */
+function guessedPlatform(raw: string): string | undefined {
+  const lower = raw.toLowerCase();
+  const mobile = MOBILE_KEYS.find(([keys]) => keys.some((key) => lower.includes(key)))?.[1];
+  return mobile ?? (browserName(raw) ? 'Web' : undefined);
+}
+
+function browserName(raw: string): string | undefined {
+  const lower = raw.toLowerCase();
+  return BROWSER_NAMES.find(([keys]) => keys.some((key) => lower.includes(key)))?.[1];
+}
+
+/** A device or browser key as a name: `pixel_7` is Pixel 7, `iphone_15_pro` is iPhone 15 pro. */
+function readable(raw: string): string {
+  return capitalized(raw.trim().replace(/_/g, ' ').replace(/^iphone/i, 'iPhone').replace(/^ipad/i, 'iPad'));
+}
+
+/** First letter upper-cased, unless the name is cased on purpose (`iPhone`, `iPad`). */
+function capitalized(name: string): string {
+  return /^[a-z][A-Z]/.test(name) ? name : name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 /**

@@ -156,6 +156,27 @@ describe('toJUnitXml (CON-6433)', () => {
     expect(xml).not.toContain('<system-out>');
   });
 
+  it("links a failing test to its result in ContextQA, before its trace and the run's report", () => {
+    const testCase = outcome(2, 'FAILURE', {
+      message: 'Element not found',
+      resultUrl: 'https://app.example.com/td/test_case_results/2',
+      traceViewerUrl: 'https://trace/2',
+      failedStep: { step: 'Click on Submit', message: 'Element not found', hasScreenshot: false },
+    });
+    const xml = toJUnitXml({ runId: 9, reportUrl: 'https://app.example.com/td/runs/9', results: baseResults, passed: false, testCases: [testCase] }, '827');
+
+    expect(xml).toContain(
+      '<failure message="Element not found" type="FAILURE">Element not found\nFailed step: Click on Submit\nResult: https://app.example.com/td/test_case_results/2\nTrace: https://trace/2\nReport: https://app.example.com/td/runs/9</failure>',
+    );
+  });
+
+  it('says which device a failing test ran on', () => {
+    const testCase = outcome(2, 'FAILURE', { message: 'Element not found', platform: 'Android', device: 'Pixel 9' });
+    const xml = toJUnitXml({ runId: 9, results: baseResults, passed: false, testCases: [testCase] }, '827');
+
+    expect(xml).toContain('<failure message="Element not found" type="FAILURE">Element not found\nDevice: Android - Pixel 9</failure>');
+  });
+
   it('collapses a run without per-test detail into one case timed by the wall-clock', () => {
     const xml = toJUnitXml({ runId: 9, results: { ...baseResults, result: 'SUCCESS', wallClockMs: 2_000 }, passed: true }, '827');
 

@@ -13,6 +13,7 @@ workflows:
       - contextqa/run:
           plan-id: '827'
           context: contextqa             # holds CONTEXTQA_TOKEN
+          view: detailed                 # optional: compact, standard (default), detailed or full
 ```
 
 1. Put `CONTEXTQA_TOKEN` in a [context](https://circleci.com/docs/contexts/) (or a project environment
@@ -23,6 +24,11 @@ To test a build from an earlier job, persist it to the workspace and pass `works
 `android-build` / `ios-build`; see the `upload-a-build` example in [`orb.yml`](orb.yml).
 
 The `contextqa/run-plan` command works inside your own jobs too, on any executor with Node.
+
+`view` sets how much the end of the job's log shows: the verdict and the report link (`compact`), each
+failing test case with its error, device and a link to its result in ContextQA (`standard`, the default),
+each failure in full with a breakdown by suite (`detailed`), or every test case (`full`). The **Tests**
+tab is the same in every view. [Summary and log views](../../docs/report-views.md) has a sample of each.
 
 ## How it runs
 
