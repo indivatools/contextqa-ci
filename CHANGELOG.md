@@ -36,6 +36,8 @@ straight to its result in ContextQA.
   case (up to 50), its error and a link to its result, then the report link. Until now the GitLab,
   Jenkins, CircleCI and Bitbucket logs ended with just the counts and the report link. The Azure DevOps
   log and the GitHub Action's step log get the same lines.
+- **Usage on npm.** The [`contextqa`](https://www.npmjs.com/package/contextqa) package page now shows how
+  to run it, with every option, the token permissions and the exit codes.
 - **Long errors and large runs stay readable.** In the job summary and the log, an error longer than 1,000
   characters, such as a stack trace, is cut with `…` (at 300 in the `full` view's test case tables); the
   JUnit report keeps it whole. A job summary that would pass GitHub's 1 MiB limit now stops at a line,
