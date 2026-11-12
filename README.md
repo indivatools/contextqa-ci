@@ -233,3 +233,7 @@ Documentation lives at [learning.contextqa.com](https://learning.contextqa.com).
 ContextQA team or open an issue in this repository.
 
 Contributing and release process: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)

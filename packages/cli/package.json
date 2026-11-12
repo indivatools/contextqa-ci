@@ -1,7 +1,27 @@
 {
   "name": "contextqa",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Run a ContextQA test plan from any CI pipeline and gate on the result",
+  "keywords": [
+    "contextqa",
+    "ci",
+    "cd",
+    "test-automation",
+    "e2e",
+    "junit",
+    "cli",
+    "github-actions",
+    "gitlab-ci",
+    "jenkins",
+    "azure-pipelines",
+    "circleci",
+    "bitbucket-pipelines"
+  ],
+  "homepage": "https://github.com/indivatools/contextqa-ci#readme",
+  "bugs": {
+    "url": "https://github.com/indivatools/contextqa-ci/issues"
+  },
   "type": "module",
   "bin": {
     "contextqa": "dist/bin.js"

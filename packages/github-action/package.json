@@ -1,6 +1,7 @@
 {
   "name": "@contextqa-inc/github-action",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "GitHub Action glue for contextqa-ci; bundled to dist/index.js at the repo root",
   "type": "module",

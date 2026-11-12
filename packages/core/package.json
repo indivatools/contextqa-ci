@@ -1,7 +1,18 @@
 {
   "name": "@contextqa-inc/ci-core",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Trigger a ContextQA test plan, wait for it, and report the result",
+  "keywords": [
+    "contextqa",
+    "ci",
+    "test-automation",
+    "junit"
+  ],
+  "homepage": "https://github.com/indivatools/contextqa-ci#readme",
+  "bugs": {
+    "url": "https://github.com/indivatools/contextqa-ci/issues"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
